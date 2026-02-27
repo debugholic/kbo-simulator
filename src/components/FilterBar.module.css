@@ -5,6 +5,37 @@
   flex-wrap: wrap;
 }
 
+/* 투수/타자 탭 */
+.typeTabs {
+  display: flex;
+  background: var(--bg3);
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.typeTab {
+  padding: 5px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text3);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+  letter-spacing: 0.3px;
+}
+
+.typeTab:hover {
+  color: var(--text2);
+}
+
+.typeTab.typeActive {
+  background: var(--accent);
+  color: #000;
+}
+
 .positions {
   display: flex;
   gap: 4px;

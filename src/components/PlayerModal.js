@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor } from '../utils';
+import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor, getTeamDisplayColor } from '../utils';
 import styles from './PlayerModal.module.css';
 
 const PITCHER_STATS = [
@@ -14,12 +14,11 @@ const BATTER_STATS = [
   { key: 'discipline', label: '선구안', desc: 'Discipline' },
   { key: 'power', label: '파워', desc: 'Power' },
   { key: 'speed', label: '주력', desc: 'Speed' },
-  { key: 'eye', label: '눈', desc: 'Eye' },
 ];
 
 function RadarBar({ label, desc, value }) {
   if (!value) return null;
-  const pct = ((value - 40) / 49) * 100;
+  const pct = value; // 0~100 기준
   const color = getBarColor(value);
   return (
     <div className={styles.radarRow}>
@@ -40,6 +39,7 @@ export default function PlayerModal({ player, team, onClose }) {
   const grade = getGrade(overall);
   const isPitcher = getPositionGroup(player.position) === 'pitcher';
   const stats = isPitcher ? PITCHER_STATS : BATTER_STATS;
+  const displayColor = getTeamDisplayColor(team);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -55,14 +55,14 @@ export default function PlayerModal({ player, team, onClose }) {
           className={styles.header}
           style={{
             background: team
-              ? `linear-gradient(135deg, ${team.color}55 0%, ${team.color}22 60%, transparent 100%)`
+              ? `linear-gradient(135deg, ${displayColor}55 0%, ${displayColor}22 60%, transparent 100%)`
               : 'var(--bg3)',
-            borderBottomColor: team ? team.color + '44' : 'var(--border)',
+            borderBottomColor: team ? displayColor + '44' : 'var(--border)',
           }}
         >
           <div className={styles.headerLeft}>
             {team && (
-              <div className={styles.teamTag} style={{ background: team.color }}>
+              <div className={styles.teamTag} style={{ background: displayColor }}>
                 {team.name_kor}
               </div>
             )}

@@ -1,29 +1,37 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import playersData from './data/players.json';
-import teamsData from './data/teams.json';
+import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import TeamSelector from './components/TeamSelector';
 import PlayerTable from './components/PlayerTable';
 import PlayerModal from './components/PlayerModal';
 import FilterBar from './components/FilterBar';
-import { matchPositionGroup, getOverall } from './utils';
+import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor } from './utils';
+import { useData } from './hooks/useData';
 import styles from './App.module.css';
 
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+
+const isAdmin = new URLSearchParams(window.location.search).get('admin') === '1';
+
 export default function App() {
+  const { players, teams, teamsMap, loading, error } = useData();
+
   const [selectedTeam, setSelectedTeam] = useState('ALL');
+  const [playerType, setPlayerType] = useState('pitcher');
   const [positionGroup, setPositionGroup] = useState('ALL');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('overall');
   const [sortDir, setSortDir] = useState('desc');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
-  const teamsMap = useMemo(() => {
-    const m = {};
-    teamsData.forEach(t => m[t.id] = t);
-    return m;
+  const handlePlayerType = useCallback((type) => {
+    setPlayerType(type);
+    setPositionGroup('ALL');
   }, []);
 
   const filteredPlayers = useMemo(() => {
-    let list = playersData;
+    let list = players;
+
+    // 투수/타자 탭 필터
+    list = list.filter(p => getPositionGroup(p.position) === playerType);
 
     if (selectedTeam !== 'ALL') {
       list = list.filter(p => p.team_id === selectedTeam);
@@ -60,7 +68,7 @@ export default function App() {
     });
 
     return list;
-  }, [selectedTeam, positionGroup, search, sortKey, sortDir]);
+  }, [players, selectedTeam, playerType, positionGroup, search, sortKey, sortDir]);
 
   const handleSort = useCallback((key) => {
     if (sortKey === key) {
@@ -73,20 +81,48 @@ export default function App() {
 
   const currentTeam = selectedTeam !== 'ALL' ? teamsMap[selectedTeam] : null;
 
+  // ── Admin Mode ──
+  if (isAdmin) {
+    return (
+      <Suspense fallback={<div className={styles.loadingWrap}><div className={styles.spinner} /></div>}>
+        <AdminPage players={players} teams={teams} teamsMap={teamsMap} loading={loading} />
+      </Suspense>
+    );
+  }
+
+  // ── Loading ──
+  if (loading) {
+    return (
+      <div className={styles.loadingWrap}>
+        <div className={styles.spinner} />
+        <p className={styles.loadingText}>데이터 로딩 중...</p>
+      </div>
+    );
+  }
+
+  // ── Error ──
+  if (error) {
+    return (
+      <div className={styles.loadingWrap}>
+        <p className={styles.errorText}>데이터를 불러오지 못했습니다.<br />{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.app}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.logo}>
             <span className={styles.logoMain}>KBO</span>
-            <span className={styles.logoSub}>ROSTER</span>
+            <span className={styles.logoSub}>SIMULATOR</span>
           </div>
           <div className={styles.stats}>
             <span className={styles.statItem}>
               <strong>{filteredPlayers.length}</strong> 선수
             </span>
             <span className={styles.statItem}>
-              <strong>10</strong> 구단
+              <strong>{teams.length || 10}</strong> 구단
             </span>
           </div>
         </div>
@@ -94,27 +130,32 @@ export default function App() {
 
       <main className={styles.main}>
         <TeamSelector
-          teams={teamsData}
+          teams={teams}
           selected={selectedTeam}
           onSelect={setSelectedTeam}
         />
 
         <div className={styles.content}>
-          {currentTeam && (
-            <div
-              className={styles.teamBanner}
-              style={{
-                background: `linear-gradient(135deg, ${currentTeam.color}33 0%, ${currentTeam.accent}22 100%)`,
-                borderColor: currentTeam.color + '66',
-              }}
-            >
-              <div className={styles.teamBannerDot} style={{ background: currentTeam.color }} />
-              <span className={styles.teamBannerName}>{currentTeam.name_kor}</span>
-              <span className={styles.teamBannerCount}>{filteredPlayers.length}명</span>
-            </div>
-          )}
+          {currentTeam && (() => {
+            const displayColor = getTeamDisplayColor(currentTeam);
+            return (
+              <div
+                className={styles.teamBanner}
+                style={{
+                  background: `linear-gradient(135deg, ${displayColor}33 0%, ${displayColor}11 100%)`,
+                  borderColor: displayColor + '66',
+                }}
+              >
+                <div className={styles.teamBannerDot} style={{ background: displayColor }} />
+                <span className={styles.teamBannerName}>{currentTeam.name_kor}</span>
+                <span className={styles.teamBannerCount}>{filteredPlayers.length}명</span>
+              </div>
+            );
+          })()}
 
           <FilterBar
+            playerType={playerType}
+            onPlayerType={handlePlayerType}
             positionGroup={positionGroup}
             onPositionGroup={setPositionGroup}
             search={search}
@@ -124,6 +165,7 @@ export default function App() {
           <PlayerTable
             players={filteredPlayers}
             teamsMap={teamsMap}
+            playerType={playerType}
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}

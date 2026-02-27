@@ -4,6 +4,7 @@
   "private": true,
   "homepage": "https://debugholic.github.io/kbo-simulator",
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1"

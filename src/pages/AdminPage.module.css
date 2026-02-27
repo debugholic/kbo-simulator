@@ -1,0 +1,411 @@
+.wrap {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #1a1a2e;
+  border-bottom: 2px solid #e8c84a;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.adminBadge {
+  background: #e8c84a;
+  color: #1a1a2e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.subInfo {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+}
+
+.backBtn {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  transition: all 0.15s;
+}
+.backBtn:hover {
+  color: #fff;
+  border-color: rgba(255,255,255,0.5);
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  position: sticky;
+  top: 56px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.select:focus { border-color: #e8c84a; }
+
+.searchInput {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  min-width: 180px;
+  outline: none;
+}
+.searchInput:focus { border-color: #e8c84a; }
+
+.spacer { flex: 1; }
+
+.importArea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recalcBtn {
+  padding: 6px 14px;
+  background: #1a3a2e;
+  color: #4caf50;
+  border: 1px solid #4caf5044;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.recalcBtn:hover {
+  background: #4caf50;
+  color: #fff;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.importBtn {
+  padding: 6px 14px;
+  background: #1a1a2e;
+  color: #e8c84a;
+  border: 1px solid #e8c84a44;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.importBtn:hover {
+  background: #e8c84a;
+  color: #1a1a2e;
+}
+
+.importStatus {
+  font-size: 12px;
+  color: var(--text2);
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Loading ── */
+.loadingMsg {
+  text-align: center;
+  padding: 60px;
+  color: var(--text3);
+  font-size: 14px;
+}
+
+/* ── Table ── */
+.tableWrap {
+  flex: 1;
+  overflow: auto;
+  padding: 0 0 24px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.th {
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
+  border-bottom: 2px solid var(--border);
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.abilityHead {
+  line-height: 1.5;
+}
+
+.row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.row:hover { background: rgba(0,0,0,0.02); }
+.rowAdj { background: rgba(76,175,80,0.05); }
+.rowAdj:hover { background: rgba(76,175,80,0.09); }
+
+.td {
+  padding: 10px 16px;
+  vertical-align: middle;
+}
+
+/* ── Team dot ── */
+.teamDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Name ── */
+.nameKor {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.nameEng {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+
+/* ── Position badge ── */
+.posBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.posPitcher { background: rgba(33,150,243,0.12); color: #1565C0; }
+.posBatter  { background: rgba(76,175,80,0.12);  color: #2E7D32; }
+
+/* ── Ability cells ── */
+.abilityCells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.abilityItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+}
+
+.abilityLabel {
+  font-size: 11px;
+  color: var(--text3);
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.cellVal {
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.1s;
+  min-width: 32px;
+  text-align: center;
+}
+.cellVal:hover {
+  border-color: var(--border);
+  background: var(--bg3);
+}
+
+.cellInput {
+  width: 48px;
+  padding: 2px 4px;
+  border: 1px solid #e8c84a;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+/* ── Delta 보정치 셀 ── */
+.deltaVal {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.deltaInput {
+  width: 48px;
+  padding: 2px 4px;
+  border: 1px solid #4caf50;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+}
+
+.adjNotes {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.adjNone {
+  font-size: 13px;
+  color: var(--text3);
+  opacity: 0.4;
+}
+
+/* ── Status badges ── */
+.manualBadge {
+  display: inline-block;
+  padding: 2px 7px;
+  background: rgba(232,200,74,0.2);
+  color: #b8940a;
+  border: 1px solid rgba(232,200,74,0.4);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.savedBadge {
+  display: inline-block;
+  padding: 2px 7px;
+  background: rgba(76,175,80,0.15);
+  color: #2E7D32;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+/* ── Action buttons ── */
+.actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.saveBtn {
+  padding: 4px 12px;
+  background: #1565C0;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.saveBtn:hover { opacity: 0.85; }
+.saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.adjSaveBtn {
+  padding: 4px 12px;
+  background: #1a3a2e;
+  color: #4caf50;
+  border: 1px solid #4caf5055;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.adjSaveBtn:hover { background: #4caf50; color: #fff; }
+.adjSaveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Empty / Footer ── */
+.emptyMsg {
+  padding: 48px;
+  text-align: center;
+  color: var(--text3);
+  font-size: 14px;
+}
+
+.footer {
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text3);
+  background: var(--bg2);
+}

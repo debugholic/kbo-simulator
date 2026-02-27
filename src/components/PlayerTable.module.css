@@ -43,12 +43,12 @@
 
 /* TD */
 .row {
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
   cursor: pointer;
   transition: background 0.1s;
 }
 
-.row:hover { background: rgba(255,255,255,0.03); }
+.row:hover { background: rgba(0,0,0,0.03); }
 .row:last-child { border-bottom: none; }
 
 .td, .tdNum, .tdStat, .tdOvr, .tdName, .tdCenter {
@@ -108,13 +108,13 @@
 }
 
 .posPitcher {
-  background: rgba(33, 150, 243, 0.15);
-  color: #64B5F6;
+  background: rgba(33, 150, 243, 0.12);
+  color: #1565C0;
 }
 
 .posBatter {
-  background: rgba(76, 175, 80, 0.15);
-  color: #81C784;
+  background: rgba(76, 175, 80, 0.12);
+  color: #2E7D32;
 }
 
 /* Team name */

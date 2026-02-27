@@ -128,7 +128,7 @@
   transition: color 0.1s;
 }
 
-.closeBtn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.closeBtn:hover { color: var(--text); background: rgba(0,0,0,0.05); }
 
 /* Meta */
 .meta {
@@ -158,8 +158,8 @@
   color: var(--text);
 }
 
-.pitcher { color: #64B5F6; }
-.batter { color: #81C784; }
+.pitcher { color: #1565C0; }
+.batter { color: #2E7D32; }
 
 /* Abilities */
 .abilities {

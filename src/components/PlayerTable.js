@@ -1,15 +1,24 @@
 import React from 'react';
-import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor } from '../utils';
+import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor, getTeamDisplayColor } from '../utils';
 import styles from './PlayerTable.module.css';
 
-const SORT_COLS = [
-  { key: 'name', label: '선수명' },
-  { key: 'overall', label: 'OVR' },
+const PITCHER_COLS = [
+  { key: 'control', label: '제구' },
+  { key: 'stuff', label: '구위' },
+  { key: 'stamina', label: '체력' },
+  { key: 'command', label: '커맨드' },
 ];
 
-function StatBar({ value, isPitcher, statKey }) {
+const BATTER_COLS = [
+  { key: 'contact', label: '컨택' },
+  { key: 'discipline', label: '선구안' },
+  { key: 'power', label: '파워' },
+  { key: 'speed', label: '주력' },
+];
+
+function StatBar({ value }) {
   if (!value) return <span className={styles.noStat}>-</span>;
-  const pct = ((value - 40) / 49) * 100;
+  const pct = value; // 0~100 기준
   const color = getBarColor(value);
   return (
     <div className={styles.statCell}>
@@ -29,7 +38,9 @@ function SortIcon({ active, dir }) {
   );
 }
 
-export default function PlayerTable({ players, teamsMap, sortKey, sortDir, onSort, onSelect, showTeam }) {
+export default function PlayerTable({ players, teamsMap, playerType, sortKey, sortDir, onSort, onSelect, showTeam }) {
+  const statCols = playerType === 'pitcher' ? PITCHER_COLS : BATTER_COLS;
+
   if (!players.length) {
     return (
       <div className={styles.empty}>
@@ -55,35 +66,11 @@ export default function PlayerTable({ players, teamsMap, sortKey, sortDir, onSor
             <th className={`${styles.th} ${styles.thOvr}`} onClick={() => onSort('overall')}>
               OVR <SortIcon active={sortKey === 'overall'} dir={sortDir} />
             </th>
-            {/* Pitcher stats */}
-            <th className={styles.thStat} onClick={() => onSort('control')}>
-              제구 <SortIcon active={sortKey === 'control'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('stuff')}>
-              구위 <SortIcon active={sortKey === 'stuff'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('stamina')}>
-              체력 <SortIcon active={sortKey === 'stamina'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('command')}>
-              커맨드 <SortIcon active={sortKey === 'command'} dir={sortDir} />
-            </th>
-            {/* Batter stats */}
-            <th className={styles.thStat} onClick={() => onSort('contact')}>
-              컨텍 <SortIcon active={sortKey === 'contact'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('discipline')}>
-              선구 <SortIcon active={sortKey === 'discipline'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('power')}>
-              파워 <SortIcon active={sortKey === 'power'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('speed')}>
-              주력 <SortIcon active={sortKey === 'speed'} dir={sortDir} />
-            </th>
-            <th className={styles.thStat} onClick={() => onSort('eye')}>
-              눈 <SortIcon active={sortKey === 'eye'} dir={sortDir} />
-            </th>
+            {statCols.map(col => (
+              <th key={col.key} className={styles.thStat} onClick={() => onSort(col.key)}>
+                {col.label} <SortIcon active={sortKey === col.key} dir={sortDir} />
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -92,6 +79,7 @@ export default function PlayerTable({ players, teamsMap, sortKey, sortDir, onSor
             const grade = getGrade(overall);
             const isPitcher = getPositionGroup(player.position) === 'pitcher';
             const team = teamsMap[player.team_id];
+            const displayColor = getTeamDisplayColor(team);
             return (
               <tr
                 key={player.id}
@@ -104,7 +92,7 @@ export default function PlayerTable({ players, teamsMap, sortKey, sortDir, onSor
                     {team && (
                       <div
                         className={styles.teamStripe}
-                        style={{ background: team.color }}
+                        style={{ background: displayColor }}
                       />
                     )}
                     <div>
@@ -126,7 +114,7 @@ export default function PlayerTable({ players, teamsMap, sortKey, sortDir, onSor
                 {showTeam && (
                   <td className={styles.td}>
                     {team && (
-                      <span className={styles.teamName} style={{ color: team.color }}>
+                      <span className={styles.teamName} style={{ color: displayColor }}>
                         {team.name_kor}
                       </span>
                     )}
@@ -143,17 +131,11 @@ export default function PlayerTable({ players, teamsMap, sortKey, sortDir, onSor
                     <span className={styles.noStat}>-</span>
                   )}
                 </td>
-                {/* pitcher */}
-                <td className={styles.tdStat}><StatBar value={isPitcher ? player.control : null} /></td>
-                <td className={styles.tdStat}><StatBar value={isPitcher ? player.stuff : null} /></td>
-                <td className={styles.tdStat}><StatBar value={isPitcher ? player.stamina : null} /></td>
-                <td className={styles.tdStat}><StatBar value={isPitcher ? player.command : null} /></td>
-                {/* batter */}
-                <td className={styles.tdStat}><StatBar value={!isPitcher ? player.contact : null} /></td>
-                <td className={styles.tdStat}><StatBar value={!isPitcher ? player.discipline : null} /></td>
-                <td className={styles.tdStat}><StatBar value={!isPitcher ? player.power : null} /></td>
-                <td className={styles.tdStat}><StatBar value={!isPitcher ? player.speed : null} /></td>
-                <td className={styles.tdStat}><StatBar value={!isPitcher ? player.eye : null} /></td>
+                {statCols.map(col => (
+                  <td key={col.key} className={styles.tdStat}>
+                    <StatBar value={player[col.key]} />
+                  </td>
+                ))}
               </tr>
             );
           })}

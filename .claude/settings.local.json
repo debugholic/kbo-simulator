@@ -1,7 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install --save-dev gh-pages)"
+      "Bash(npm install --save-dev gh-pages)",
+      "Bash(/opt/homebrew/bin/gh --version)",
+      "Bash(/usr/local/bin/gh --version)",
+      "Bash(brew install gh)",
+      "Bash(/opt/homebrew/bin/brew install gh)",
+      "Bash(/opt/homebrew/bin/gh repo create kbo-simulator --public --source=/Volumes/비밀친구/Git/kbo-simulator --remote=origin --push)",
+      "Bash(/opt/homebrew/bin/gh api repos/debugholic/kbo-simulator/pages --method POST -f source[branch]=gh-pages -f source[path]=/)",
+      "Bash(/opt/homebrew/bin/gh api repos/debugholic/kbo-simulator/pages --method POST --field 'source[branch]=gh-pages' --field 'source[path]=/')",
+      "Bash(/opt/homebrew/bin/gh api repos/debugholic/kbo-simulator/pages)",
+      "Bash(git -C /Volumes/비밀친구/Git/kbo-simulator --no-pager log --oneline -5)",
+      "Bash(node -e \":*)",
+      "Bash(export NVM_DIR=\"$HOME/.nvm\")",
+      "Bash(source \"$NVM_DIR/nvm.sh\")",
+      "Bash(npm run deploy --prefix /Volumes/비밀친구/Git/kbo-simulator)",
+      "Bash(python3 -c \":*)",
+      "Bash(npm run deploy)",
+      "Bash(python3:*)",
+      "Bash(npm install @supabase/supabase-js)",
+      "Bash(. \"$HOME/.nvm/nvm.sh\")",
+      "Bash(source /Users/younghun/.nvm/nvm.sh)",
+      "Bash(npm run build)"
     ]
   }
 }
