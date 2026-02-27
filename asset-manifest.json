@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/kbo-simulator/static/css/main.772a18bf.css",
+    "main.js": "/kbo-simulator/static/js/main.cafa9485.js",
+    "index.html": "/kbo-simulator/index.html",
+    "main.772a18bf.css.map": "/kbo-simulator/static/css/main.772a18bf.css.map",
+    "main.cafa9485.js.map": "/kbo-simulator/static/js/main.cafa9485.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.772a18bf.css",
+    "static/js/main.cafa9485.js"
+  ]
+}
