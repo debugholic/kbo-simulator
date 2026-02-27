@@ -1,0 +1,113 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10, 10, 15, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.headerInner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.logoMain {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.logoSub {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: var(--text2);
+  line-height: 1;
+}
+
+.stats {
+  display: flex;
+  gap: 24px;
+}
+
+.statItem {
+  font-size: 12px;
+  color: var(--text3);
+  letter-spacing: 0.5px;
+}
+
+.statItem strong {
+  color: var(--text);
+  font-weight: 700;
+  margin-right: 3px;
+}
+
+/* ── Main ── */
+.main {
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Content ── */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Team Banner ── */
+.teamBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: var(--radius);
+  border: 1px solid;
+  background: var(--bg2);
+}
+
+.teamBannerDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.teamBannerName {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.teamBannerCount {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text2);
+}

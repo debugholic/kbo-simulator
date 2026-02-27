@@ -1,0 +1,198 @@
+.tableWrap {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+/* TH */
+.table thead tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.th, .thNum, .thStat, .thOvr {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--bg3);
+}
+
+.thNum { width: 36px; text-align: center; }
+.thName { min-width: 160px; }
+.thOvr { width: 80px; text-align: center; cursor: pointer; }
+.thStat { width: 90px; cursor: pointer; }
+.thStat:hover, .thOvr:hover, .thName:hover { color: var(--text); }
+
+.th[onClick], .thStat[onClick] { cursor: pointer; }
+.th[onClick]:hover { color: var(--text); }
+
+/* Sort icon */
+.sortIcon { margin-left: 4px; opacity: 0.3; font-size: 10px; }
+.sortActive { opacity: 1; color: var(--accent); }
+
+/* TD */
+.row {
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.row:hover { background: rgba(255,255,255,0.03); }
+.row:last-child { border-bottom: none; }
+
+.td, .tdNum, .tdStat, .tdOvr, .tdName, .tdCenter {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.tdNum {
+  text-align: center;
+  color: var(--text3);
+  font-size: 11px;
+  width: 36px;
+}
+
+.tdName { min-width: 160px; }
+
+.nameWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.teamStripe {
+  width: 3px;
+  height: 32px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.nameKor {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.nameEng {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+
+.jersey {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+/* Position badge */
+.pos {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.posPitcher {
+  background: rgba(33, 150, 243, 0.15);
+  color: #64B5F6;
+}
+
+.posBatter {
+  background: rgba(76, 175, 80, 0.15);
+  color: #81C784;
+}
+
+/* Team name */
+.teamName {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Overall */
+.tdOvr { text-align: center; }
+
+.ovrBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+}
+
+.ovrGrade {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.ovrNum {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Stats */
+.tdStat { min-width: 90px; }
+
+.tdCenter { text-align: center; color: var(--text2); }
+
+.statCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.barWrap {
+  flex: 1;
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.statVal {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  width: 20px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.noStat {
+  color: var(--text3);
+  font-size: 12px;
+}
+
+/* Empty state */
+.empty {
+  padding: 60px;
+  text-align: center;
+  color: var(--text3);
+  font-size: 14px;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}

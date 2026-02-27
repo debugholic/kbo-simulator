@@ -1,0 +1,86 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.positions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.posBtn {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.1s;
+}
+
+.posBtn:hover {
+  border-color: rgba(255,255,255,0.2);
+  color: var(--text);
+}
+
+.posBtn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 700;
+}
+
+.searchWrap {
+  position: relative;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: var(--text3);
+  pointer-events: none;
+}
+
+.search {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 7px 32px 7px 32px;
+  font-size: 13px;
+  outline: none;
+  width: 200px;
+  transition: border-color 0.15s;
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.search::placeholder {
+  color: var(--text3);
+}
+
+.clearBtn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.clearBtn:hover {
+  color: var(--text);
+}
