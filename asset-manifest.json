@@ -1,17 +1,17 @@
 {
   "files": {
     "main.css": "/kbo-simulator/static/css/main.ca6683e0.css",
-    "main.js": "/kbo-simulator/static/js/main.1936e008.js",
-    "static/css/838.4d5f43cd.chunk.css": "/kbo-simulator/static/css/838.4d5f43cd.chunk.css",
-    "static/js/838.10ef8468.chunk.js": "/kbo-simulator/static/js/838.10ef8468.chunk.js",
+    "main.js": "/kbo-simulator/static/js/main.2bdad801.js",
+    "static/css/9.061e4112.chunk.css": "/kbo-simulator/static/css/9.061e4112.chunk.css",
+    "static/js/9.04080c1b.chunk.js": "/kbo-simulator/static/js/9.04080c1b.chunk.js",
     "index.html": "/kbo-simulator/index.html",
     "main.ca6683e0.css.map": "/kbo-simulator/static/css/main.ca6683e0.css.map",
-    "main.1936e008.js.map": "/kbo-simulator/static/js/main.1936e008.js.map",
-    "838.4d5f43cd.chunk.css.map": "/kbo-simulator/static/css/838.4d5f43cd.chunk.css.map",
-    "838.10ef8468.chunk.js.map": "/kbo-simulator/static/js/838.10ef8468.chunk.js.map"
+    "main.2bdad801.js.map": "/kbo-simulator/static/js/main.2bdad801.js.map",
+    "9.061e4112.chunk.css.map": "/kbo-simulator/static/css/9.061e4112.chunk.css.map",
+    "9.04080c1b.chunk.js.map": "/kbo-simulator/static/js/9.04080c1b.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.ca6683e0.css",
-    "static/js/main.1936e008.js"
+    "static/js/main.2bdad801.js"
   ]
 }
