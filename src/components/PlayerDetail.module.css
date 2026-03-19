@@ -1,0 +1,374 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Bar ── */
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 4px;
+  transition: opacity 0.15s;
+}
+
+.backBtn:hover { opacity: 0.7; }
+
+.topBarTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+/* ── Container ── */
+.container {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header Card ── */
+.headerCard {
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 24px;
+  background: var(--bg2);
+}
+
+.headerTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* ── Player Photo ── */
+.playerPhoto {
+  width: 76px;
+  height: auto;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
+  align-self: flex-end;
+  transition: opacity 0.3s ease;
+  border: 2px solid var(--border);
+}
+
+.headerInfo { flex: 1; }
+
+.teamTag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.playerName {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text);
+}
+
+.playerNameEng {
+  font-size: 13px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ovrCircle {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2.5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg2);
+}
+
+.ovrGrade {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.ovrNum {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.ovrLabel {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 1px;
+}
+
+.jersey {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 30px;
+  color: var(--text3);
+  letter-spacing: 1px;
+}
+
+/* ── Meta ── */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metaChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+
+.metaKey {
+  font-size: 11px;
+  color: var(--text3);
+  font-weight: 500;
+}
+
+.metaVal {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pitcher { color: #1565C0; }
+.batter { color: #2E7D32; }
+
+/* ── Section ── */
+.section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+/* ── Radar Chart ── */
+.radarWrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.radarSvg {
+  width: 100%;
+  max-width: 300px;
+}
+
+.radarLabel {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text);
+}
+
+.radarValue {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* ── Stat Bars ── */
+.statList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.statRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.statLabel {
+  width: 80px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.statLabel span:first-child {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.statDesc {
+  font-size: 10px;
+  color: var(--text3);
+}
+
+.barWrap {
+  flex: 1;
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.statVal {
+  width: 30px;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Pitch Layout (좌우 배치) ── */
+.pitchLayout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.pitchLeft {
+  flex: 1;
+  min-width: 0;
+}
+
+.pitchRight {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .pitchLayout {
+    flex-direction: column;
+  }
+}
+
+/* ── Pitch Grid ── */
+.pitchGrid {
+}
+
+.pitchGridHeader {
+  display: grid;
+  grid-template-columns: 1fr 80px 60px;
+  gap: 8px;
+  padding: 0 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.pitchGridHeader span:nth-child(2),
+.pitchGridHeader span:nth-child(3) {
+  text-align: center;
+}
+
+.pitchGridRow {
+  display: grid;
+  grid-template-columns: 1fr 80px 60px;
+  gap: 8px;
+  padding: 8px 4px;
+  border-top: 1px solid var(--bg3);
+  align-items: center;
+}
+
+.pitchName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pitchVelo {
+  font-size: 13px;
+  color: var(--text2);
+  text-align: right;
+  padding-right: 8px;
+}
+
+.pitchPct {
+  font-size: 13px;
+  color: var(--text2);
+  text-align: center;
+}
+
+.pitchVal {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ── Empty Text ── */
+.emptyText {
+  font-size: 13px;
+  color: var(--text3);
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* ── Summary / Report ── */
+.summaryText {
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.7;
+  border-left: 2px solid var(--accent);
+  padding-left: 14px;
+}

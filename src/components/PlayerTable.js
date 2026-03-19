@@ -1,24 +1,12 @@
 import React from 'react';
-import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor, getTeamDisplayColor } from '../utils';
+import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor, getTeamDisplayColor, ATTRIBUTE_DEFS, calcAge } from '../utils';
 import styles from './PlayerTable.module.css';
 
-const PITCHER_COLS = [
-  { key: 'control', label: '제구' },
-  { key: 'stuff', label: '구위' },
-  { key: 'stamina', label: '체력' },
-  { key: 'command', label: '커맨드' },
-];
-
-const BATTER_COLS = [
-  { key: 'contact', label: '컨택' },
-  { key: 'discipline', label: '선구안' },
-  { key: 'power', label: '파워' },
-  { key: 'speed', label: '주력' },
-];
+const ATTR_COLS = ATTRIBUTE_DEFS.slice(0, 4); // 테이블에는 주요 4개만 표시
 
 function StatBar({ value }) {
   if (!value) return <span className={styles.noStat}>-</span>;
-  const pct = value; // 0~100 기준
+  const pct = value;
   const color = getBarColor(value);
   return (
     <div className={styles.statCell}>
@@ -39,8 +27,6 @@ function SortIcon({ active, dir }) {
 }
 
 export default function PlayerTable({ players, teamsMap, playerType, sortKey, sortDir, onSort, onSelect, showTeam }) {
-  const statCols = playerType === 'pitcher' ? PITCHER_COLS : BATTER_COLS;
-
   if (!players.length) {
     return (
       <div className={styles.empty}>
@@ -66,7 +52,7 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
             <th className={`${styles.th} ${styles.thOvr}`} onClick={() => onSort('overall')}>
               OVR <SortIcon active={sortKey === 'overall'} dir={sortDir} />
             </th>
-            {statCols.map(col => (
+            {ATTR_COLS.map(col => (
               <th key={col.key} className={styles.thStat} onClick={() => onSort(col.key)}>
                 {col.label} <SortIcon active={sortKey === col.key} dir={sortDir} />
               </th>
@@ -80,6 +66,7 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
             const isPitcher = getPositionGroup(player.position) === 'pitcher';
             const team = teamsMap[player.team_id];
             const displayColor = getTeamDisplayColor(team);
+            const age = calcAge(player.birthdate);
             return (
               <tr
                 key={player.id}
@@ -120,7 +107,7 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
                     )}
                   </td>
                 )}
-                <td className={styles.tdCenter}>{player.age ?? '-'}</td>
+                <td className={styles.tdCenter}>{age ?? '-'}</td>
                 <td className={styles.tdOvr}>
                   {overall != null ? (
                     <span className={styles.ovrBadge} style={{ color: grade.color, borderColor: grade.color + '44' }}>
@@ -131,9 +118,9 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
                     <span className={styles.noStat}>-</span>
                   )}
                 </td>
-                {statCols.map(col => (
+                {ATTR_COLS.map(col => (
                   <td key={col.key} className={styles.tdStat}>
-                    <StatBar value={player[col.key]} />
+                    <StatBar value={player.attributes?.[col.key]} />
                   </td>
                 ))}
               </tr>

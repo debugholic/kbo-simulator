@@ -1,18 +1,14 @@
-import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import TeamSelector from './components/TeamSelector';
 import PlayerTable from './components/PlayerTable';
-import PlayerModal from './components/PlayerModal';
+import PlayerDetail from './components/PlayerDetail';
 import FilterBar from './components/FilterBar';
-import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor } from './utils';
+import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor, calcAge } from './utils';
 import { useData } from './hooks/useData';
 import styles from './App.module.css';
 
-const AdminPage = lazy(() => import('./pages/AdminPage'));
-
-const isAdmin = new URLSearchParams(window.location.search).get('admin') === '1';
-
 export default function App() {
-  const { players, teams, teamsMap, loading, error } = useData();
+  const { players, teams, teamsMap, leaguePitchStats, loading, error } = useData();
 
   const [selectedTeam, setSelectedTeam] = useState('ALL');
   const [playerType, setPlayerType] = useState('pitcher');
@@ -54,15 +50,16 @@ export default function App() {
         av = getOverall(a) ?? -1;
         bv = getOverall(b) ?? -1;
       } else if (sortKey === 'age') {
-        av = a.age ?? 0;
-        bv = b.age ?? 0;
+        av = calcAge(a.birthdate) ?? 0;
+        bv = calcAge(b.birthdate) ?? 0;
       } else if (sortKey === 'name') {
         return sortDir === 'asc'
           ? a.name_kor.localeCompare(b.name_kor, 'ko')
           : b.name_kor.localeCompare(a.name_kor, 'ko');
       } else {
-        av = a[sortKey] ?? -1;
-        bv = b[sortKey] ?? -1;
+        // attributes 키로 정렬
+        av = a.attributes?.[sortKey] ?? -1;
+        bv = b.attributes?.[sortKey] ?? -1;
       }
       return sortDir === 'desc' ? bv - av : av - bv;
     });
@@ -81,12 +78,15 @@ export default function App() {
 
   const currentTeam = selectedTeam !== 'ALL' ? teamsMap[selectedTeam] : null;
 
-  // ── Admin Mode ──
-  if (isAdmin) {
+  // ── Player Detail Page ──
+  if (selectedPlayer) {
     return (
-      <Suspense fallback={<div className={styles.loadingWrap}><div className={styles.spinner} /></div>}>
-        <AdminPage players={players} teams={teams} teamsMap={teamsMap} loading={loading} />
-      </Suspense>
+      <PlayerDetail
+        player={selectedPlayer}
+        team={teamsMap[selectedPlayer.team_id]}
+        leaguePitchStats={leaguePitchStats}
+        onBack={() => setSelectedPlayer(null)}
+      />
     );
   }
 
@@ -175,13 +175,6 @@ export default function App() {
         </div>
       </main>
 
-      {selectedPlayer && (
-        <PlayerModal
-          player={selectedPlayer}
-          team={teamsMap[selectedPlayer.team_id]}
-          onClose={() => setSelectedPlayer(null)}
-        />
-      )}
     </div>
   );
 }
