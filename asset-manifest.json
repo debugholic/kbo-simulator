@@ -1,17 +1,13 @@
 {
   "files": {
-    "main.css": "/kbo-simulator/static/css/main.ca6683e0.css",
-    "main.js": "/kbo-simulator/static/js/main.7e77b38d.js",
-    "static/css/298.a5520a6d.chunk.css": "/kbo-simulator/static/css/298.a5520a6d.chunk.css",
-    "static/js/298.2123ce12.chunk.js": "/kbo-simulator/static/js/298.2123ce12.chunk.js",
+    "main.css": "/kbo-simulator/static/css/main.6909e44f.css",
+    "main.js": "/kbo-simulator/static/js/main.19bf295d.js",
     "index.html": "/kbo-simulator/index.html",
-    "main.ca6683e0.css.map": "/kbo-simulator/static/css/main.ca6683e0.css.map",
-    "main.7e77b38d.js.map": "/kbo-simulator/static/js/main.7e77b38d.js.map",
-    "298.a5520a6d.chunk.css.map": "/kbo-simulator/static/css/298.a5520a6d.chunk.css.map",
-    "298.2123ce12.chunk.js.map": "/kbo-simulator/static/js/298.2123ce12.chunk.js.map"
+    "main.6909e44f.css.map": "/kbo-simulator/static/css/main.6909e44f.css.map",
+    "main.19bf295d.js.map": "/kbo-simulator/static/js/main.19bf295d.js.map"
   },
   "entrypoints": [
-    "static/css/main.ca6683e0.css",
-    "static/js/main.7e77b38d.js"
+    "static/css/main.6909e44f.css",
+    "static/js/main.19bf295d.js"
   ]
 }
