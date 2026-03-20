@@ -1,12 +1,13 @@
 import React from 'react';
-import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor, getTeamDisplayColor, ATTRIBUTE_DEFS, calcAge } from '../utils';
+import { getOverall, getGrade, getPositionGroup, POSITION_KOR, getBarColor, getTeamDisplayColor, PITCHER_EVAL_COLS, ATTRIBUTE_DEFS, calcAge } from '../utils';
 import styles from './PlayerTable.module.css';
 
-const ATTR_COLS = ATTRIBUTE_DEFS.slice(0, 4); // 테이블에는 주요 4개만 표시
+const BATTER_COLS = ATTRIBUTE_DEFS.slice(0, 4); // 타자는 특성 4개 표시
 
 function StatBar({ value }) {
   if (!value) return <span className={styles.noStat}>-</span>;
-  const pct = value;
+  // 20-80 스케일 → 0-100% 바 폭 변환
+  const pct = Math.max(0, Math.min(100, ((value - 20) / 60) * 100));
   const color = getBarColor(value);
   return (
     <div className={styles.statCell}>
@@ -27,6 +28,8 @@ function SortIcon({ active, dir }) {
 }
 
 export default function PlayerTable({ players, teamsMap, playerType, sortKey, sortDir, onSort, onSelect, showTeam }) {
+  const statCols = playerType === 'pitcher' ? PITCHER_EVAL_COLS : BATTER_COLS;
+
   if (!players.length) {
     return (
       <div className={styles.empty}>
@@ -52,7 +55,7 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
             <th className={`${styles.th} ${styles.thOvr}`} onClick={() => onSort('overall')}>
               OVR <SortIcon active={sortKey === 'overall'} dir={sortDir} />
             </th>
-            {ATTR_COLS.map(col => (
+            {statCols.map(col => (
               <th key={col.key} className={styles.thStat} onClick={() => onSort(col.key)}>
                 {col.label} <SortIcon active={sortKey === col.key} dir={sortDir} />
               </th>
@@ -118,9 +121,13 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
                     <span className={styles.noStat}>-</span>
                   )}
                 </td>
-                {ATTR_COLS.map(col => (
+                {statCols.map(col => (
                   <td key={col.key} className={styles.tdStat}>
-                    <StatBar value={player.attributes?.[col.key]} />
+                    <StatBar value={
+                      playerType === 'pitcher'
+                        ? player.pitcherEval?.[col.key]
+                        : player.attributes?.[col.key]
+                    } />
                   </td>
                 ))}
               </tr>

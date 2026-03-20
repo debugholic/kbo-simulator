@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import {
   getOverall, getGrade, getPositionGroup, POSITION_KOR,
-  getBarColor, getTeamDisplayColor, ATTRIBUTE_DEFS,
+  getBarColor, getTeamDisplayColor,
   PITCH_TYPE_KOR, PITCH_TYPES, calcAge,
 } from '../utils';
 import { EVAL_CATEGORIES } from '../utils/pitcherEval';
 import styles from './PlayerDetail.module.css';
 
-const STORAGE_URL = 'https://ruiismfjwipmluufmhoe.supabase.co/storage/v1/object/public/player-images';
+const SUPABASE_URL = 'https://ruiismfjwipmluufmhoe.supabase.co';
 
 /* ── Player Photo (로드 실패 시 숨김) ── */
-function PlayerPhoto({ playerId }) {
+function PlayerPhoto({ imageUrl }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
-  if (error) return null;
+  if (!imageUrl || error) return null;
 
   return (
     <img
-      src={`${STORAGE_URL}/${playerId}.png`}
+      src={`${SUPABASE_URL}${imageUrl}`}
       alt=""
       className={styles.playerPhoto}
       style={{ opacity: loaded ? 1 : 0 }}
@@ -166,10 +166,48 @@ function StatRow({ label, desc, value, suffix, min = 0, max = 100 }) {
   );
 }
 
+/* ── 슬라이더 → 스위퍼 자동 판별 ── */
+// 패스트볼(포심/싱커) 대비 구속차, 절대 구속, 헛스윙률을 복합 스코어링
+function classifySlider(sliderVelo, sliderWhiff, fastballVelo) {
+  let score = 0;
+
+  // (1) 패스트볼 대비 구속차 — 스위퍼는 15km+ 차이가 일반적
+  if (fastballVelo != null && sliderVelo != null) {
+    const gap = fastballVelo - sliderVelo;
+    if (gap >= 20) score += 3;
+    else if (gap >= 17) score += 2;
+    else if (gap >= 14) score += 1;
+    else if (gap <= 8) score -= 2;
+    else if (gap <= 10) score -= 1;
+  }
+
+  // (2) 절대 구속 — 스위퍼 125~132km, 슬라이더 133km+
+  if (sliderVelo != null) {
+    const v = Number(sliderVelo);
+    if (v <= 126) score += 3;
+    else if (v <= 129) score += 2;
+    else if (v <= 132) score += 1;
+    else if (v >= 137) score -= 2;
+    else if (v >= 135) score -= 1;
+  }
+
+  // (3) 헛스윙률 — 스위퍼는 수평 무브먼트로 높은 whiff 유도
+  if (sliderWhiff != null) {
+    const w = Number(sliderWhiff);
+    if (w >= 38) score += 2;
+    else if (w >= 33) score += 1;
+    else if (w <= 20) score -= 1;
+  }
+
+  // score >= 3 → 스위퍼 확정
+  return score >= 3 ? '스위퍼' : '슬라이더';
+}
+
 /* ── 구종 정보 추출 (사용하는 구종만) ── */
 function getPitchItems(pitchStats) {
   if (!pitchStats) return [];
-  return PITCH_TYPES
+
+  const items = PITCH_TYPES
     .filter(type => {
       const pct = pitchStats[`pct_${type}`];
       return pct != null && pct > 0;
@@ -181,20 +219,105 @@ function getPitchItems(pitchStats) {
       val100: pitchStats[`val100_${type}`] != null ? Math.round(Number(pitchStats[`val100_${type}`])) : null,
       velo: pitchStats[`velo_${type}`] != null ? Number(pitchStats[`velo_${type}`]).toFixed(1) : null,
       pct: pitchStats[`pct_${type}`] != null ? Number(pitchStats[`pct_${type}`]).toFixed(1) : null,
+      whiff: pitchStats[`whiff_${type}`] != null ? Number(pitchStats[`whiff_${type}`]) : null,
     }));
+
+  // 슬라이더 → 스위퍼 재분류
+  const sliderItem = items.find(i => i.type === 'slider');
+  if (sliderItem) {
+    const fbItem = items.find(i => i.type === '4seam') || items.find(i => i.type === 'sinker');
+    const fbVelo = fbItem ? Number(fbItem.velo) : null;
+    sliderItem.label = classifySlider(sliderItem.velo, sliderItem.whiff, fbVelo);
+  }
+
+  return items;
 }
 
 /* ── val100을 리그 평균 대비 z-score로 20~80 스케일 변환 ── */
-function normalizeVal100(val100, type, leagueStats) {
-  if (val100 == null) return 20;
-  const league = leagueStats?.[type];
-  if (league) {
-    // z-score 기반: 50 + z * 10, clamped 20~80
-    const z = (val100 - league.mean) / league.std;
-    return Math.max(20, Math.min(80, Math.round(50 + z * 10)));
+// 구속 기반 구종 등급 추정 벤치마크 (KBO 평균 구속, km/h)
+const VELO_BENCHMARKS = {
+  '4seam': { mean: 145, std: 3.5 },
+  '2seam': { mean: 143, std: 3.5 },
+  cutter:  { mean: 138, std: 3 },
+  curve:   { mean: 125, std: 4 },
+  slider:  { mean: 133, std: 4 },
+  changeup:{ mean: 135, std: 3.5 },
+  sinker:  { mean: 144, std: 3.5 },
+  fork:    { mean: 135, std: 3.5 },
+  knuckle: { mean: 125, std: 5 },
+  other:   { mean: 135, std: 5 },
+};
+
+// 구종별 헛스윙률(whiff%) 벤치마크 (KBO 평균, %)
+const WHIFF_BENCHMARKS = {
+  '4seam': { mean: 18, std: 5 },
+  '2seam': { mean: 15, std: 5 },
+  cutter:  { mean: 22, std: 6 },
+  curve:   { mean: 30, std: 8 },
+  slider:  { mean: 32, std: 7 },
+  changeup:{ mean: 28, std: 7 },
+  sinker:  { mean: 16, std: 5 },
+  fork:    { mean: 32, std: 7 },
+  knuckle: { mean: 25, std: 8 },
+  other:   { mean: 22, std: 7 },
+};
+
+function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false } = {}) {
+  let score = null;
+
+  // whiff + velo 복합 추정
+  const calcWhiffVelo = () => {
+    let veloScore = null;
+    let whiffScore = null;
+    if (velo != null) {
+      const bench = VELO_BENCHMARKS[type];
+      if (bench) veloScore = 50 + ((Number(velo) - bench.mean) / bench.std) * 10;
+    }
+    if (whiff != null) {
+      const bench = WHIFF_BENCHMARKS[type];
+      if (bench) whiffScore = 50 + ((Number(whiff) - bench.mean) / bench.std) * 10;
+    }
+    if (whiffScore != null && veloScore != null) return whiffScore * 0.6 + veloScore * 0.4;
+    if (whiffScore != null) return whiffScore;
+    if (veloScore != null) return veloScore;
+    return null;
+  };
+
+  // 외국 리그: val100 스케일이 KBO와 다르므로 whiff+velo 우선, val100 보조
+  if (isForeign) {
+    const wv = calcWhiffVelo();
+    if (wv != null && val100 != null) {
+      const league = leagueStats?.[type];
+      const v100Score = league
+        ? 50 + ((val100 - league.mean) / league.std) * 6
+        : 50 + val100 * 8;
+      score = wv * 0.6 + v100Score * 0.4; // whiff+velo 60%, val100 40%
+    } else if (wv != null) {
+      score = wv;
+    } else if (val100 != null) {
+      const league = leagueStats?.[type];
+      score = league
+        ? 50 + ((val100 - league.mean) / league.std) * 6
+        : 50 + val100 * 8;
+    }
+  } else if (val100 != null) {
+    // KBO: val100 리그 z-score 기반
+    const league = leagueStats?.[type];
+    score = league
+      ? 50 + ((val100 - league.mean) / league.std) * 6
+      : 50 + val100 * 8;
+  } else {
+    score = calcWhiffVelo();
   }
-  // 리그 데이터 없으면 단순 매핑
-  return Math.max(20, Math.min(80, Math.round(50 + val100 * 8)));
+
+  if (score == null) return null;
+
+  // 신인 페널티: 검증되지 않은 루키는 구종 점수 할인
+  if (isRookie) {
+    score = 38 + (score - 50) * 0.5;
+  }
+
+  return Math.max(20, Math.min(80, Math.round(score)));
 }
 
 export default function PlayerDetail({ player, team, leaguePitchStats, onBack }) {
@@ -208,19 +331,16 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
   const pitchItems = isPitcher ? getPitchItems(player.pitchStats) : [];
   const hasPitchData = pitchItems.length > 0;
 
+  // 신인/외국 리그 판별
+  const sourceLeague = player.pitcherEval?.sourceLeague || 'KBO';
+  const isRookie = sourceLeague === 'ROOKIE';
+  const isForeign = ['AAA', 'MLB', 'NPB', 'NPB_FARM'].includes(sourceLeague);
+
   // 레이더 차트용 데이터 (리그 평균 대비 z-score 정규화)
   const radarItems = pitchItems.map(item => ({
     label: item.label,
-    value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats),
+    value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats, item.velo, item.whiff, { isRookie, isForeign }),
   }));
-
-  // 특성 레이더 차트용 데이터
-  const attrItems = ATTRIBUTE_DEFS
-    .filter(def => player.attributes?.[def.key] != null)
-    .map(def => ({
-      label: def.label,
-      value: player.attributes[def.key],
-    }));
 
   // 투수 5대 능력치
   const pitcherEval = player.pitcherEval || null;
@@ -256,7 +376,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
           }}
         >
           <div className={styles.headerTop}>
-            <PlayerPhoto playerId={player.id} />
+            <PlayerPhoto imageUrl={player.image_url} />
             <div className={styles.headerInfo}>
               {team && (
                 <div className={styles.teamTag} style={{ background: displayColor }}>
@@ -318,7 +438,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
           </div>
         </div>
 
-        {/* 투수 5대 능력치 (Stuff, Command, Control, Holding, Stamina) */}
+        {/* 1. 투수 5대 능력치 */}
         {isPitcher && evalItems.length > 0 && (
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>투수 평가</h2>
@@ -341,31 +461,31 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
           </div>
         )}
 
-        {/* 선수 특성 (투수 능력치) */}
-        {attrItems.length > 0 && (
+        {/* 2. 스카우팅 리포트 */}
+        {player.attributes?.scouting_report && (
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>
-              {isPitcher ? '투수 능력치' : '타자 능력치'}
-            </h2>
-            <RadarChart items={attrItems} teamColor={displayColor} />
-            <div className={styles.statList}>
-              {ATTRIBUTE_DEFS.map(def => {
-                const val = player.attributes?.[def.key];
-                if (val == null) return null;
-                return (
-                  <StatRow
-                    key={def.key}
-                    label={def.label}
-                    desc={def.desc}
-                    value={val}
-                  />
-                );
-              })}
+            <h2 className={styles.sectionTitle}>스카우팅 리포트</h2>
+            <div className={styles.quoteBlock} style={{ '--team-color': displayColor }}>
+              <div className={styles.reportText}>
+                {player.attributes.scouting_report.split('\n').filter(s => s.trim() && !s.trim().startsWith('총평')).map((para, i) => (
+                  <p key={i} className={styles.reportPara}>{para}</p>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* 구종 (투수만) - 좌: 레이더, 우: 데이터 */}
+        {/* 3. 종합 평가 */}
+        {player.attributes?.overall_comment && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>종합 평가</h2>
+            <div className={styles.quoteBlock} style={{ '--team-color': displayColor }}>
+              <p className={styles.summaryText}>{player.attributes.overall_comment}</p>
+            </div>
+          </div>
+        )}
+
+        {/* 4. 구종 */}
         {isPitcher && hasPitchData && (
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>구종</h2>
@@ -397,22 +517,6 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>구종</h2>
             <p className={styles.emptyText}>구종 데이터가 없습니다</p>
-          </div>
-        )}
-
-        {/* 스카우팅 리포트 */}
-        {player.attributes?.scouting_report && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>스카우팅 리포트</h2>
-            <p className={styles.summaryText}>{player.attributes.scouting_report}</p>
-          </div>
-        )}
-
-        {/* 종합 코멘트 */}
-        {player.attributes?.overall_comment && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>종합 평가</h2>
-            <p className={styles.summaryText}>{player.attributes.overall_comment}</p>
           </div>
         )}
       </div>

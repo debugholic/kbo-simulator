@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { PITCH_TYPES } from '../utils';
-import { calcLeagueStdDevsFromTables, evaluatePitcher } from '../utils/pitcherEval';
+import { calcLeagueStdDevsFromTables, evaluatePitcher, evaluateRookie } from '../utils/pitcherEval';
 
 /**
  * 구종별 val100 리그 평균/표준편차 계산
@@ -9,22 +9,33 @@ import { calcLeagueStdDevsFromTables, evaluatePitcher } from '../utils/pitcherEv
 function calcLeaguePitchStats(allPitchStats) {
   if (!allPitchStats || !allPitchStats.length) return {};
 
-  // 최신 연도 기준
-  const maxYear = Math.max(...allPitchStats.map(s => s.year));
-  const latest = allPitchStats.filter(s => s.year === maxYear);
+  // val100 데이터가 실제 존재하는 최신 연도 기준
+  const years = [...new Set(allPitchStats.map(s => s.year))].sort((a, b) => b - a);
+  let latest = [];
+  for (const yr of years) {
+    const rows = allPitchStats.filter(s => s.year === yr);
+    const hasVal = rows.some(s => PITCH_TYPES.some(t => s[`val100_${t}`] != null));
+    if (hasVal) { latest = rows; break; }
+  }
 
-  const result = {};
+  // 전체 구종 val100을 하나의 풀로 모아서 공통 분포 계산
+  const allValues = [];
   for (const type of PITCH_TYPES) {
     const key = `val100_${type}`;
-    const values = latest.map(s => s[key]).filter(v => v != null).map(Number);
-    if (values.length < 2) continue;
-
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance = values.reduce((a, v) => a + (v - mean) ** 2, 0) / values.length;
-    const std = Math.sqrt(variance);
-
-    result[type] = { mean, std: std || 1 };
+    latest.forEach(s => {
+      if (s[key] != null) allValues.push(Number(s[key]));
+    });
   }
+  if (allValues.length < 2) return {};
+
+  const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+  const variance = allValues.reduce((a, v) => a + (v - mean) ** 2, 0) / allValues.length;
+  const std = Math.sqrt(variance) || 1;
+  const common = { mean, std };
+
+  // 모든 구종에 동일한 분포 적용
+  const result = {};
+  for (const type of PITCH_TYPES) { result[type] = common; }
   return result;
 }
 
@@ -55,6 +66,7 @@ export function useData() {
         const [
           teamsRes, playersRes, allPitchRes,
           leagueSeasonRes, leagueQualityRes, leagueRunningRes,
+          attrRes, rookieScoutingRes,
         ] = await Promise.all([
           supabase.from('teams').select('*'),
           supabase
@@ -62,13 +74,6 @@ export function useData() {
             .select(`
               id, name_kor, name_eng, number, position, bats_throws,
               birthdate, team_id, height, weight, image_url, status,
-              player_attributes (
-                competitiveness, resilience, focus, adaptability,
-                work_ethic, durability, leadership,
-                competitiveness_desc, resilience_desc, focus_desc,
-                adaptability_desc, work_ethic_desc, durability_desc,
-                leadership_desc, overall_comment, scouting_report
-              ),
               pitcher_pitch_type_stats (
                 year, g, ip,
                 val100_4seam, val100_2seam, val100_cutter, val100_curve,
@@ -79,10 +84,13 @@ export function useData() {
                 velo_knuckle, velo_other,
                 pct_4seam, pct_2seam, pct_cutter, pct_curve,
                 pct_slider, pct_changeup, pct_sinker, pct_fork,
-                pct_knuckle, pct_other
+                pct_knuckle, pct_other,
+                whiff_4seam, whiff_2seam, whiff_cutter, whiff_curve,
+                whiff_slider, whiff_changeup, whiff_sinker, whiff_fork,
+                whiff_knuckle, whiff_other
               ),
               pitcher_season_stats (
-                year, g, gs, gr, gf, cg, sho, w, l, s, hd,
+                year, source_league, g, gs, gr, gf, cg, sho, w, l, s, hd,
                 ip, er, r, tbf, h, hr, bb, hp, so, bk, wp,
                 era, fip, whip, war,
                 k_per9, bb_per9, k_pct, bb_pct, k_bb,
@@ -90,7 +98,7 @@ export function useData() {
                 np, p_per_g, p_per_ip, p_per_pa
               ),
               pitcher_pitch_quality_stats (
-                year, g,
+                year, source_league, g,
                 s_pct, looking_pct, swinging_pct, csw_pct,
                 swing_pct, contact_pct, whiff_pct,
                 first_pitch_s_pct, first_pitch_whiff_pct, putaway_pct,
@@ -113,12 +121,24 @@ export function useData() {
           supabase.from('league_pitcher_season_stats').select('*').order('year', { ascending: false }),
           supabase.from('league_pitcher_quality_stats').select('*').order('year', { ascending: false }),
           supabase.from('league_pitcher_running_stats').select('*').order('year', { ascending: false }),
+          // player_attributes 별도 쿼리 (PostgREST 조인 미작동 대응)
+          supabase.from('player_attributes').select('*'),
+          // 신인 투수 스카우팅
+          supabase.from('rookie_pitcher_scouting').select('*'),
         ]);
 
         if (teamsRes.error) throw teamsRes.error;
         if (playersRes.error) throw playersRes.error;
 
         if (cancelled) return;
+
+        // player_attributes를 player_id 기준 맵으로 변환
+        const attrMap = {};
+        (attrRes.data || []).forEach(a => { attrMap[a.player_id] = a; });
+
+        // 신인 투수 스카우팅을 player_id 기준 맵으로 변환
+        const rookieScoutMap = {};
+        (rookieScoutingRes.data || []).forEach(r => { rookieScoutMap[r.player_id] = r; });
 
         // 리그 평균/표준편차 계산 (구종)
         const leagueStats = calcLeaguePitchStats(allPitchRes.data || []);
@@ -135,12 +155,32 @@ export function useData() {
           running: leagueRunningRows[0] || null,
         };
 
+        // 연도별 리그 평균 맵 (시즌별 리그 보정용)
+        const leagueAvgsByYear = {};
+        leagueSeasonRows.forEach(r => {
+          if (!leagueAvgsByYear[r.year]) leagueAvgsByYear[r.year] = {};
+          leagueAvgsByYear[r.year].season = r;
+        });
+        leagueQualityRows.forEach(r => {
+          if (!leagueAvgsByYear[r.year]) leagueAvgsByYear[r.year] = {};
+          leagueAvgsByYear[r.year].quality = r;
+        });
+        leagueRunningRows.forEach(r => {
+          if (!leagueAvgsByYear[r.year]) leagueAvgsByYear[r.year] = {};
+          leagueAvgsByYear[r.year].running = r;
+        });
+
         const flatPlayers = (playersRes.data || []).map(p => {
-          const attr = p.player_attributes || {};
+          const attr = attrMap[p.id] || {};
           const pitchStats = latestByYear(p.pitcher_pitch_type_stats);
           const seasonStats = latestByYear(p.pitcher_season_stats);
           const qualityStats = latestByYear(p.pitcher_pitch_quality_stats);
           const runningStats = latestByYear(p.pitcher_baserunning_stats);
+
+          // 다년도 데이터 (연도 내림차순)
+          const allSeasonStats = (p.pitcher_season_stats || []).sort((a, b) => b.year - a.year);
+          const allQualityStats = (p.pitcher_pitch_quality_stats || []).sort((a, b) => b.year - a.year);
+          const allRunningStats = (p.pitcher_baserunning_stats || []).sort((a, b) => b.year - a.year);
 
           return {
             id:           p.id,
@@ -172,11 +212,15 @@ export function useData() {
               leadership_desc:      attr.leadership_desc ?? null,
               overall_comment:      attr.overall_comment ?? null,
               scouting_report:      attr.scouting_report ?? null,
+              rookie_scouting:      attr.rookie_scouting ?? null,
             },
             pitchStats,
             seasonStats,
             qualityStats,
             runningStats,
+            allSeasonStats,
+            allQualityStats,
+            allRunningStats,
           };
         });
 
@@ -187,11 +231,44 @@ export function useData() {
 
         // 각 투수에 대해 5대 능력치 산출
         const playersWithEval = flatPlayers.map(p => {
+          // 스카우팅 기반 신인 평가 (시즌 스탯 없는 투수)
+          const rookieScout = rookieScoutMap[p.id];
+          if (!p.seasonStats && rookieScout) {
+            const pitchGrades = {};
+            if (rookieScout.grade_4seam != null) pitchGrades['4seam'] = rookieScout.grade_4seam;
+            if (rookieScout.grade_2seam != null) pitchGrades['2seam'] = rookieScout.grade_2seam;
+            if (rookieScout.grade_cutter != null) pitchGrades.cutter = rookieScout.grade_cutter;
+            if (rookieScout.grade_curve != null) pitchGrades.curve = rookieScout.grade_curve;
+            if (rookieScout.grade_slider != null) pitchGrades.slider = rookieScout.grade_slider;
+            if (rookieScout.grade_changeup != null) pitchGrades.changeup = rookieScout.grade_changeup;
+            if (rookieScout.grade_sinker != null) pitchGrades.sinker = rookieScout.grade_sinker;
+            if (rookieScout.grade_fork != null) pitchGrades.fork = rookieScout.grade_fork;
+            return {
+              ...p,
+              pitcherEval: evaluateRookie({
+                maxVelo: Number(rookieScout.max_velo) || 140,
+                avgVelo: rookieScout.avg_velo ? Number(rookieScout.avg_velo) : undefined,
+                pitchGrades,
+                commandGrade: rookieScout.command_grade ?? 50,
+                controlGrade: rookieScout.control_grade ?? 50,
+                draftRound: rookieScout.draft_round ?? 10,
+                age: rookieScout.age ?? 18,
+              }),
+            };
+          }
           if (!p.seasonStats) return p;
+          const sourceLeague = p.seasonStats.source_league || 'KBO';
           const eval5 = evaluatePitcher(
-            { seasonStats: p.seasonStats, qualityStats: p.qualityStats, runningStats: p.runningStats },
+            {
+              seasonStats: p.seasonStats, qualityStats: p.qualityStats,
+              runningStats: p.runningStats, pitchStats: p.pitchStats,
+              allSeasonStats: p.allSeasonStats, allQualityStats: p.allQualityStats,
+              allRunningStats: p.allRunningStats,
+            },
             leagueAvgs,
             stdDevs,
+            sourceLeague,
+            leagueAvgsByYear,
           );
           return { ...p, pitcherEval: eval5 };
         });

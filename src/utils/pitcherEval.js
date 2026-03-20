@@ -5,11 +5,41 @@
  * - 리그 테이블(league_*)의 연도별 데이터 → 가중 평균/stddev (7:4:2:1:1)
  * - Stamina는 KBO 고정 기준값 + 선발 보너스
  * - IP < 30 이닝 투수는 리그 평균 방향으로 회귀 보정
+ * - 외국 리그(MLB/AAA/NPB) 스탯은 리그 수준 차이 보정 (z-score 오프셋)
  * - 20-80 스케일 출력
  */
 
 // 리그 연도별 stddev → 개인 수준 편차 근사치로 변환하는 배율
 const LEAGUE_STDDEV_SCALE = 4;
+
+/* ── 리그 수준 변환 (z-score 오프셋) ── */
+// MLB >> AAA >= NPB > KBO
+// 각 카테고리별로 해당 리그 평균 투수가 KBO에서 z-score 몇에 해당하는지
+export const LEAGUE_Z_OFFSETS = {
+  KBO: { stuff: 0,    command: 0,    control: 0,    holding: 0,    stamina: 0    },
+  MLB: { stuff: 1.5,  command: 1.0,  control: 0.8,  holding: 0.5,  stamina: 0.5  },
+  // AAA: 재능 격차(약간 >) + 환경 보정(타고투저, BB 높은 리그)
+  // stuff는 AAA K/9이 KBO보다 높아 환경 보정 상쇄 → 중간값
+  // control은 AAA BB/9이 높은 환경이므로 더 큰 보정 필요
+  // AAA: 타고투저 환경 보정 — ERA/FIP/BB 부풀려지므로 투수에게 후한 오프셋
+  AAA: { stuff: 1.3,  command: 1.3,  control: 1.3,  holding: 0.5,  stamina: 0.5  },
+  NPB: { stuff: 0.3,  command: 0.25, control: 0.2,  holding: 0.15, stamina: 0.15 },
+  // NPB 2군(이스턴/웨스턴): KBO보다 낮은 수준
+  NPB_FARM: { stuff: -0.3, command: -0.3, control: -0.2, holding: -0.15, stamina: -0.15 },
+};
+
+export const SUPPORTED_LEAGUES = Object.keys(LEAGUE_Z_OFFSETS);
+
+// 리그별 카테고리 점수 하한선 (floor)
+// 외국 리그 선수는 KBO에 데려온 이유가 있으므로 극단적 저평가 방지
+// KBO 선수는 제한 없음 (소표본 회귀로 자연스럽게 30-40대)
+const LEAGUE_SCORE_FLOOR = {
+  KBO: 20,
+  MLB: 50,
+  AAA: 48,
+  NPB: 48,
+  NPB_FARM: 20,
+};
 
 // 연도별 가중치 (최신 순: 2025→2021)
 const YEAR_WEIGHTS = [7, 4, 2, 1, 1];
@@ -29,11 +59,11 @@ const STUFF_METRICS = [
 ];
 
 // Command: 투구 위치 정밀도 — 원하는 곳에 꽂는 능력, 가운데로 안 밀림
+// p_per_ip는 quality stats 없을 때 단독으로 command를 결정하면 왜곡되므로 폴백에서만 사용
 const COMMAND_METRICS = [
   { key: 'zone_mid_pitch_pct',   source: 'quality', dir: 'lower',  weight: 1.5 },
   { key: 'zone_in_pitch_pct',    source: 'quality', dir: 'higher', weight: 1.2 },
   { key: 'first_pitch_s_pct',    source: 'quality', dir: 'higher', weight: 1.0 },
-  { key: 'p_per_ip',             source: 'season',  dir: 'lower',  weight: 0.8 },
 ];
 
 // Control: 볼넷 억제, 안정적 스트라이크 제어
@@ -71,8 +101,8 @@ const STAMINA_STARTER_BENCHMARKS = {
 };
 
 const STAMINA_RELIEVER_BENCHMARKS = {
-  ip_per_g:  { mean: 1.0, std: 0.4 },
-  np_per_g:  { mean: 18, std: 5 },
+  ip_per_g:  { mean: 1.15, std: 0.4 },
+  np_per_g:  { mean: 20, std: 5 },
 };
 
 // 선발 보너스: 선발 등판 횟수에 따라 Stamina 추가
@@ -302,106 +332,307 @@ export function calcLeagueStdDevsFromTables(leagueSeasonRows, leagueQualityRows,
   return { common };
 }
 
-/* ── 메인 산출 함수 ── */
+/* ── 오프셋 블렌딩 ── */
 
 /**
- * 카테고리 점수 계산 (Stuff, Command, Control, Holding)
- * z-score 기반, 20-80 스케일
+ * 카테고리 내 season/quality 지표 비중에 따라 오프셋 블렌딩
+ * season 소스와 quality 소스의 리그가 다를 때 (예: AAA 시즌 + MLB quality)
  */
-function calcCategoryScore(metrics, statsMap, playerData, leagueAvgs, regressionFactor, zMultiplier = 10) {
-  const { seasonStats, qualityStats, runningStats } = playerData;
+function blendOffset(metrics, seasonOffset, qualityOffset) {
+  if (seasonOffset === qualityOffset) return seasonOffset;
+  let seasonW = 0, qualityW = 0;
+  for (const m of metrics) {
+    if (m.source === 'season' || m.source === 'derived') seasonW += m.weight;
+    else if (m.source === 'quality') qualityW += m.weight;
+  }
+  const total = seasonW + qualityW;
+  if (total <= 0) return seasonOffset;
+  return (seasonOffset * seasonW + qualityOffset * qualityW) / total;
+}
+
+/* ── 메인 산출 함수 ── */
+
+// 소표본 보정 기준 (이닝)
+const REGRESSION_IP = 60;
+
+/**
+ * 다년도 가중 z-score 블렌딩 (시즌별 리그 보정)
+ * 각 시즌 스탯을 해당 연도 리그 평균 대비 z-score로 먼저 변환한 뒤,
+ * IP × 연도가중치로 블렌딩
+ */
+function calcBlendedCategoryScore(
+  metrics, statsMap, playerYearData, leagueAvgsByYear, maxYear,
+  zMultiplier = 10, leagueZOffset = 0
+) {
   let totalWeight = 0;
   let weightedZSum = 0;
 
-  for (const metric of metrics) {
-    const raw = getPlayerValue(metric, seasonStats, qualityStats, runningStats);
-    const leagueMean = getLeagueMean(
-      metric, leagueAvgs.season, leagueAvgs.quality, leagueAvgs.running
-    );
-    const stats = statsMap[metric.key];
+  for (const { year, seasonStats, qualityStats, runningStats } of playerYearData) {
+    const yearIdx = maxYear - year;
+    if (yearIdx >= YEAR_WEIGHTS.length) break;
 
-    if (raw == null || leagueMean == null || !stats) continue;
+    const ip = parseIP(seasonStats?.ip);
+    if (ip <= 0) continue;
 
-    // IP 기반 회귀 보정
-    const adjusted = leagueMean + (raw - leagueMean) * regressionFactor;
-    let z = (adjusted - leagueMean) / stats.std;
-    if (metric.dir === 'lower') z = -z;
-    z = Math.max(-3.5, Math.min(3.5, z)); // 이상치 왜곡 방지
+    const yearW = YEAR_WEIGHTS[yearIdx];
+    const ipWeight = ip * yearW;
+    const regressionFactor = Math.min(ip / REGRESSION_IP, 1);
 
-    weightedZSum += z * metric.weight;
-    totalWeight += metric.weight;
+    // 해당 연도 리그 평균 (없으면 최신 연도 사용)
+    const yearLeague = leagueAvgsByYear[year] || leagueAvgsByYear[maxYear];
+    if (!yearLeague) continue;
+
+    let zSum = 0;
+    let metricW = 0;
+
+    for (const metric of metrics) {
+      const raw = getPlayerValue(metric, seasonStats, qualityStats, runningStats);
+      const leagueMean = getLeagueMean(
+        metric, yearLeague.season, yearLeague.quality, yearLeague.running
+      );
+      const stats = statsMap[metric.key];
+
+      if (raw == null || leagueMean == null || !stats) continue;
+
+      const adjusted = leagueMean + (raw - leagueMean) * regressionFactor;
+      let z = (adjusted - leagueMean) / stats.std;
+      if (metric.dir === 'lower') z = -z;
+      z = Math.max(-3.5, Math.min(3.5, z));
+
+      zSum += z * metric.weight;
+      metricW += metric.weight;
+    }
+
+    if (metricW > 0) {
+      weightedZSum += (zSum / metricW) * ipWeight;
+      totalWeight += ipWeight;
+    }
   }
 
   if (totalWeight <= 0) return null;
-  const avgZ = weightedZSum / totalWeight;
+  const avgZ = weightedZSum / totalWeight + leagueZOffset;
   return Math.max(20, Math.min(80, Math.round(50 + avgZ * zMultiplier)));
 }
 
 /**
- * Stamina 점수 계산 (고정 벤치마크 기반 rate 지표 + 선발 보너스)
+ * 다년도 Stamina 점수 (고정 벤치마크 기반, 시즌별 선발/불펜 자동 구분)
  */
-function calcStaminaScore(metrics, benchmarks, playerData, regressionFactor) {
-  const { seasonStats, qualityStats, runningStats } = playerData;
+function calcBlendedStaminaScore(playerYearData, maxYear, leagueZOffset = 0) {
+  const latestStarter = isStarter(playerYearData[0]?.seasonStats);
+  const zMul = latestStarter ? 10 : 12;
   let totalWeight = 0;
   let weightedZSum = 0;
+  let gsBonus = 0;
+  let bonusW = 0;
 
-  for (const metric of metrics) {
-    const raw = getPlayerValue(metric, seasonStats, qualityStats, runningStats);
-    const bench = benchmarks[metric.key];
-    if (raw == null || !bench) continue;
+  for (const { year, seasonStats } of playerYearData) {
+    const yearIdx = maxYear - year;
+    if (yearIdx >= YEAR_WEIGHTS.length) break;
 
-    const adjusted = bench.mean + (raw - bench.mean) * regressionFactor;
-    let z = (adjusted - bench.mean) / bench.std;
-    if (metric.dir === 'lower') z = -z;
-    z = Math.max(-3.5, Math.min(3.5, z));
+    const ip = parseIP(seasonStats?.ip);
+    if (ip <= 0) continue;
 
-    weightedZSum += z * metric.weight;
-    totalWeight += metric.weight;
+    const yearW = YEAR_WEIGHTS[yearIdx];
+    const ipWeight = ip * yearW;
+    const starter = isStarter(seasonStats);
+    const metrics = starter ? STAMINA_STARTER_METRICS : STAMINA_RELIEVER_METRICS;
+    const benchmarks = starter ? STAMINA_STARTER_BENCHMARKS : STAMINA_RELIEVER_BENCHMARKS;
+    const gs = Number(seasonStats?.gs ?? 0);
+    const g = Number(seasonStats?.g ?? 0);
+    const regressionFactor = starter ? Math.min(gs / 30, 1) : Math.min(g / 40, 1);
+
+    let zSum = 0;
+    let metricW = 0;
+
+    for (const metric of metrics) {
+      const raw = getPlayerValue(metric, seasonStats, null, null);
+      const bench = benchmarks[metric.key];
+      if (raw == null || !bench) continue;
+
+      const adjusted = bench.mean + (raw - bench.mean) * regressionFactor;
+      let z = (adjusted - bench.mean) / bench.std;
+      if (metric.dir === 'lower') z = -z;
+      z = Math.max(-3.5, Math.min(3.5, z));
+
+      zSum += z * metric.weight;
+      metricW += metric.weight;
+    }
+
+    if (metricW > 0) {
+      weightedZSum += (zSum / metricW) * ipWeight;
+      totalWeight += ipWeight;
+    }
+
+    if (starter) {
+      gsBonus += starterGsBonus(gs) * yearW;
+      bonusW += yearW;
+    }
   }
 
   if (totalWeight <= 0) return null;
-  const avgZ = weightedZSum / totalWeight;
-  let score = Math.round(50 + avgZ * 10);
-
-  // 선발 보너스: 선발 등판 횟수에 따라 추가 보너스
-  const gs = Number(seasonStats?.gs ?? 0);
-  if (isStarter(seasonStats)) {
-    score += starterGsBonus(gs);
-  }
-
+  const avgZ = weightedZSum / totalWeight + leagueZOffset;
+  let score = Math.round(50 + avgZ * zMul);
+  if (bonusW > 0) score += Math.round(gsBonus / bonusW);
   return Math.max(20, Math.min(80, score));
 }
 
 /**
  * 단일 투수의 5대 능력치 산출
+ * @param {Object} leagueAvgsByYear - { [year]: { season, quality, running } } 연도별 리그 평균
  */
-export function evaluatePitcher(playerData, leagueAvgs, stdDevs) {
-  const { seasonStats } = playerData;
-  const ip = parseIP(seasonStats?.ip);
-  const regressionFactor = Math.min(ip / 30, 1);
-  const starter = isStarter(seasonStats);
+export function evaluatePitcher(playerData, leagueAvgs, stdDevs, sourceLeague = 'KBO', leagueAvgsByYear = null) {
+  const { allSeasonStats, allQualityStats, allRunningStats } = playerData;
 
-  const result = { isStarterRole: starter };
+  // 시즌별 데이터 매핑
+  const qualityByYear = {};
+  (allQualityStats || []).forEach(q => { qualityByYear[q.year] = q; });
+  const runningByYear = {};
+  (allRunningStats || []).forEach(r => { runningByYear[r.year] = r; });
 
-  // Stuff, Command, Control, Holding (리그 테이블 기반 가중 stddev)
+  const seasonList = allSeasonStats && allSeasonStats.length > 0
+    ? allSeasonStats : [playerData.seasonStats].filter(Boolean);
+  const playerYearData = seasonList
+    .sort((a, b) => b.year - a.year)
+    .map(s => ({
+      year: s.year,
+      seasonStats: s,
+      qualityStats: qualityByYear[s.year] || null,
+      runningStats: runningByYear[s.year] || null,
+    }));
+
+  if (playerYearData.length === 0) return {};
+
+  const maxYear = playerYearData[0].year;
+  const latestSeason = playerYearData[0].seasonStats;
+  const starter = isStarter(latestSeason);
+
+  // leagueAvgsByYear 미제공 시 leagueAvgs를 maxYear에 매핑
+  const avgsByYear = leagueAvgsByYear || { [maxYear]: leagueAvgs };
+
+  // 리그 오프셋
+  const seasonOffsets = LEAGUE_Z_OFFSETS[sourceLeague] || LEAGUE_Z_OFFSETS.KBO;
+  const qualityLeague = playerData.qualityStats?.source_league || sourceLeague;
+  const qualityOffsets = LEAGUE_Z_OFFSETS[qualityLeague] || LEAGUE_Z_OFFSETS.KBO;
+  const floor = LEAGUE_SCORE_FLOOR[sourceLeague] ?? 20;
+  const result = { isStarterRole: starter, sourceLeague };
+
+  // Stuff, Command, Control, Holding — 시즌별 리그 보정 + IP×연도가중 블렌딩
   for (const category of EVAL_CATEGORIES) {
     if (category.metrics == null) continue;
-    result[category.key] = calcCategoryScore(
-      category.metrics, stdDevs.common, playerData, leagueAvgs, regressionFactor,
-      category.zMultiplier
+    const offset = blendOffset(category.metrics, seasonOffsets[category.key] || 0, qualityOffsets[category.key] || 0);
+    const raw = calcBlendedCategoryScore(
+      category.metrics, stdDevs.common, playerYearData, avgsByYear, maxYear,
+      category.zMultiplier, offset
     );
+    result[category.key] = raw != null ? Math.max(floor, raw) : null;
   }
 
-  // Stamina (고정 벤치마크 rate 지표 + 선발 보너스)
-  // 등판 수 기반 회귀: 선발은 GS/30, 불펜은 G/40
-  const staminaMetrics = getStaminaMetrics(seasonStats);
-  const staminaBenchmarks = getStaminaBenchmarks(seasonStats);
-  const gs = Number(seasonStats?.gs ?? 0);
-  const g = Number(seasonStats?.g ?? 0);
-  const staminaRegression = starter ? Math.min(gs / 30, 1) : Math.min(g / 40, 1);
-  result.stamina = calcStaminaScore(
-    staminaMetrics, staminaBenchmarks, playerData, staminaRegression
-  );
+  // Stuff 보정: quality stats가 전혀 없는 투수는 구속 보강
+  const hasAnyQuality = playerYearData.some(d => d.qualityStats != null);
+  if (result.stuff != null && !hasAnyQuality) {
+    const pitchStats = playerData.pitchStats;
+    if (pitchStats) {
+      const fbVelo = Math.max(
+        pitchStats.velo_4seam ? Number(pitchStats.velo_4seam) : 0,
+        pitchStats.velo_2seam ? Number(pitchStats.velo_2seam) : 0,
+        pitchStats.velo_sinker ? Number(pitchStats.velo_sinker) : 0,
+      );
+      if (fbVelo > 0) {
+        const veloZ = (fbVelo - 145) / 3.5;
+        const veloScore = 50 + veloZ * 10;
+        result.stuff = Math.max(floor, Math.min(80, Math.round(result.stuff * 0.5 + veloScore * 0.5)));
+      }
+    }
+  }
+
+  // Command 폴백: quality stats 없을 때 시즌 스탯 기반 간접 추정
+  if (result.command == null && latestSeason) {
+    const fip = latestSeason.fip != null ? Number(latestSeason.fip) : NaN;
+    const whip = latestSeason.whip != null ? Number(latestSeason.whip) : NaN;
+    const kbb = latestSeason.k_bb != null ? Number(latestSeason.k_bb) : NaN;
+    const ppip = latestSeason.p_per_ip != null ? Number(latestSeason.p_per_ip) : NaN;
+    if (!isNaN(fip) && !isNaN(whip)) {
+      let z = 0, n = 0;
+      z += -(fip - 4.2) / 0.7; n++;
+      z += -(whip - 1.35) / 0.15; n++;
+      if (!isNaN(kbb)) { z += (kbb - 2.5) / 0.8; n++; }
+      // P/IP: KBO 전용 (외국 리그는 투구 페이스가 달라 왜곡됨)
+      if (!isNaN(ppip) && sourceLeague === 'KBO') { z += -(ppip - 16) / 1.5; n++; }
+      const avgZ = z / n + (seasonOffsets.command || 0);
+      result.command = Math.max(floor, Math.min(80, Math.round(50 + avgZ * 10)));
+    }
+  }
+
+  // Stamina — 시즌별 고정 벤치마크 + 선발 보너스 (IP×연도가중 블렌딩)
+  const rawStamina = calcBlendedStaminaScore(playerYearData, maxYear, seasonOffsets.stamina || 0);
+  result.stamina = rawStamina != null ? Math.max(floor, rawStamina) : null;
 
   return result;
+}
+
+/* ── 신인 투수 평가 (스카우팅 기반) ── */
+
+// 구속(km/h) → stuff 추정
+function veloToStuff(maxVelo, avgVelo) {
+  // KBO 평균 구속 ~145km, std ~3.5
+  const veloZ = ((avgVelo || maxVelo * 0.96) - 145) / 3.5;
+  // 최고 구속 보너스 (155+ = 엘리트)
+  const maxBonus = maxVelo >= 155 ? (maxVelo - 155) * 0.5 : 0;
+  return Math.max(20, Math.min(80, Math.round(50 + veloZ * 10 + maxBonus)));
+}
+
+/**
+ * 스카우팅 보고서 기반 신인 투수 평가
+ * @param {Object} scouting - 스카우팅 데이터
+ *   { maxVelo, avgVelo, pitchGrades: { slider, curve, changeup, ... },
+ *     commandGrade, controlGrade, draftRound, draftPick, age }
+ */
+export function evaluateRookie(scouting) {
+  const {
+    maxVelo = 140, avgVelo, pitchGrades = {},
+    commandGrade = 50, controlGrade = 50,
+    draftRound = 10, age = 18,
+  } = scouting;
+
+  // 스카우팅 등급(잠재력)을 KBO 실전 기준으로 할인
+  // 신인은 검증되지 않았으므로 base를 낮게 잡고, 편차를 축소
+  // 목표 OVR: 1R 36-40, 2-3R 32-36, 4-5R 30-33, 6-10R 27-30
+  const ROOKIE_BASE = draftRound === 1 ? 36
+    : draftRound <= 3 ? 32
+    : draftRound <= 5 ? 29
+    : 26;
+  const ROOKIE_SCALE = 0.3; // 스카우팅 편차의 30%만 반영
+
+  const toKBO = (raw) => Math.max(20, Math.min(80, Math.round(ROOKIE_BASE + (raw - 50) * ROOKIE_SCALE)));
+
+  // Stuff: 구속 + 변화구 등급 가중 평균 (raw 스케일)
+  const stuffFromVelo = veloToStuff(maxVelo, avgVelo);
+  const breakingGrades = Object.values(pitchGrades).filter(v => v != null);
+  const avgBreaking = breakingGrades.length > 0
+    ? breakingGrades.reduce((a, b) => a + b, 0) / breakingGrades.length
+    : 50;
+  const stuffRaw = Math.round(stuffFromVelo * 0.6 + avgBreaking * 0.4);
+  const stuff = toKBO(stuffRaw);
+
+  // Command & Control: 스카우팅 등급 → KBO 할인
+  const command = toKBO(commandGrade);
+  const control = toKBO(controlGrade);
+
+  // Holding: 신인은 데이터 없음 → base 그대로
+  const holding = ROOKIE_BASE;
+
+  // Stamina: 나이/드래프트 기반, base에서 소폭 조정
+  const ageBonus = age >= 22 ? 2 : 0;
+  const draftBonus = draftRound === 1 ? 1 : 0;
+  const stamina = Math.min(80, ROOKIE_BASE - 3 + ageBonus + draftBonus);
+
+  return {
+    isStarterRole: true,
+    sourceLeague: 'ROOKIE',
+    stuff: Math.max(20, Math.min(80, stuff)),
+    command: Math.max(20, Math.min(80, command)),
+    control: Math.max(20, Math.min(80, control)),
+    holding,
+    stamina,
+  };
 }

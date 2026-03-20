@@ -56,8 +56,10 @@ export default function App() {
         return sortDir === 'asc'
           ? a.name_kor.localeCompare(b.name_kor, 'ko')
           : b.name_kor.localeCompare(a.name_kor, 'ko');
+      } else if (['stuff', 'command', 'control', 'holding', 'stamina'].includes(sortKey)) {
+        av = a.pitcherEval?.[sortKey] ?? -1;
+        bv = b.pitcherEval?.[sortKey] ?? -1;
       } else {
-        // attributes 키로 정렬
         av = a.attributes?.[sortKey] ?? -1;
         bv = b.attributes?.[sortKey] ?? -1;
       }

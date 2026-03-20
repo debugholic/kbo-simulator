@@ -1,11 +1,11 @@
 // 능력치 등급 계산
 export function getGrade(value) {
   if (!value) return { label: '-', color: '#555570' };
-  if (value >= 80) return { label: 'S', color: '#FFD700' };
-  if (value >= 73) return { label: 'A', color: '#4CAF50' };
-  if (value >= 66) return { label: 'B', color: '#2196F3' };
-  if (value >= 58) return { label: 'C', color: '#9E9E9E' };
-  if (value >= 50) return { label: 'D', color: '#795548' };
+  if (value >= 73) return { label: 'S', color: '#FFD700' };
+  if (value >= 66) return { label: 'A', color: '#4CAF50' };
+  if (value >= 58) return { label: 'B', color: '#2196F3' };
+  if (value >= 50) return { label: 'C', color: '#9E9E9E' };
+  if (value >= 42) return { label: 'D', color: '#795548' };
   return { label: 'E', color: '#F44336' };
 }
 
@@ -22,8 +22,23 @@ export const POSITION_KOR = {
   LF: '좌익', CF: '중견', RF: '우익', OF: '외야', IF: '내야',
 };
 
-// 특성(attributes) 기반 종합 계산 — 7개 항목 평균
+// 종합 능력치 계산
+// 투수: pitcherEval 5대 능력치 기반 (체력은 0.4 가중치)
+// 타자: attributes 7개 평균 (추후 변경 예정)
 export function getOverall(player) {
+  const isPitcher = getPositionGroup(player.position) === 'pitcher';
+
+  if (isPitcher && player.pitcherEval) {
+    const e = player.pitcherEval;
+    const core = [e.stuff, e.command, e.control].filter(v => v != null);
+    if (!core.length) return null;
+    let sum = core.reduce((a, b) => a + b, 0);
+    let denom = core.length;
+    if (e.holding != null) { sum += e.holding * 0.3; denom += 0.3; }
+    if (e.stamina != null) { sum += e.stamina * 0.3; denom += 0.3; }
+    return Math.round(sum / denom);
+  }
+
   const attr = player.attributes;
   if (!attr) return null;
   const vals = [
@@ -86,6 +101,15 @@ export const PITCH_TYPE_KOR = {
 };
 
 export const PITCH_TYPES = ['4seam', '2seam', 'cutter', 'curve', 'slider', 'changeup', 'sinker', 'fork', 'knuckle', 'other'];
+
+// 투수 평가 능력치 컬럼 (테이블용)
+export const PITCHER_EVAL_COLS = [
+  { key: 'stuff',   label: '구위' },
+  { key: 'command', label: '제구' },
+  { key: 'control', label: '컨트롤' },
+  { key: 'holding', label: '주자억제' },
+  { key: 'stamina', label: '체력' },
+];
 
 // 특성(attributes) 정의
 export const ATTRIBUTE_DEFS = [

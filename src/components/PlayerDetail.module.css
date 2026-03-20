@@ -369,6 +369,34 @@
   font-size: 14px;
   color: var(--text2);
   line-height: 1.7;
-  border-left: 2px solid var(--accent);
-  padding-left: 14px;
+}
+
+.quoteBlock {
+  position: relative;
+  padding: 8px 16px 0 20px;
+}
+
+.quoteBlock::before {
+  content: '\201C';
+  position: absolute;
+  top: -4px;
+  left: 0;
+  font-size: 32px;
+  font-family: 'Georgia', serif;
+  color: var(--team-color, var(--accent));
+  opacity: 0.35;
+  line-height: 1;
+}
+
+.reportText {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reportPara {
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.8;
+  margin: 0;
 }
