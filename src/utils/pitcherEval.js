@@ -42,7 +42,7 @@ const LEAGUE_SCORE_FLOOR = {
 };
 
 // 연도별 가중치 (최신 순: 2025→2021)
-const YEAR_WEIGHTS = [7, 4, 2, 1, 1];
+const YEAR_WEIGHTS = [12, 5, 3, 2, 1];
 
 /* ── 지표 정의 ── */
 
