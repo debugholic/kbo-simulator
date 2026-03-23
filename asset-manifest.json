@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/kbo-simulator/static/css/main.b43f804e.css",
-    "main.js": "/kbo-simulator/static/js/main.5277c52c.js",
+    "main.css": "/kbo-simulator/static/css/main.74ae1850.css",
+    "main.js": "/kbo-simulator/static/js/main.620e1de7.js",
     "index.html": "/kbo-simulator/index.html",
-    "main.b43f804e.css.map": "/kbo-simulator/static/css/main.b43f804e.css.map",
-    "main.5277c52c.js.map": "/kbo-simulator/static/js/main.5277c52c.js.map"
+    "main.74ae1850.css.map": "/kbo-simulator/static/css/main.74ae1850.css.map",
+    "main.620e1de7.js.map": "/kbo-simulator/static/js/main.620e1de7.js.map"
   },
   "entrypoints": [
-    "static/css/main.b43f804e.css",
-    "static/js/main.5277c52c.js"
+    "static/css/main.74ae1850.css",
+    "static/js/main.620e1de7.js"
   ]
 }
