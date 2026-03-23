@@ -60,7 +60,7 @@ function RadarChart({ items, teamColor, minVal = 0, maxVal = 100 }) {
 
   return (
     <div className={styles.radarWrap}>
-      <svg viewBox={`0 0 ${size} ${size}`} className={styles.radarSvg}>
+      <svg viewBox={`0 0 ${size} ${size}`} className={styles.radarSvg} style={{ overflow: 'visible' }}>
         {/* Grid polygons */}
         {levels.map(level => {
           const pts = items.map((_, i) => {
@@ -116,13 +116,17 @@ function RadarChart({ items, teamColor, minVal = 0, maxVal = 100 }) {
 
         {/* Labels */}
         {items.map((item, i) => {
-          const labelPoint = getPoint(i, maxVal + (range * 0.2));
+          const angle = startAngle + angleStep * i;
+          const labelPoint = getPoint(i, maxVal + (range * 0.18));
+          // 각도 방향 nudge + 좌우 라벨(|cos|이 클수록)은 아래로 추가 이동 (슬라이더 등 긴 글씨 겹침 방지)
+          const nudgeX = Math.cos(angle) * 4;
+          const nudgeY = Math.sin(angle) * 4 + Math.abs(Math.cos(angle)) * 10;
           const val = values[i];
           return (
             <g key={i}>
               <text
-                x={labelPoint.x}
-                y={labelPoint.y - 6}
+                x={labelPoint.x + nudgeX}
+                y={labelPoint.y + nudgeY - 8}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 className={styles.radarLabel}
@@ -130,8 +134,8 @@ function RadarChart({ items, teamColor, minVal = 0, maxVal = 100 }) {
                 {item.label}
               </text>
               <text
-                x={labelPoint.x}
-                y={labelPoint.y + 10}
+                x={labelPoint.x + nudgeX}
+                y={labelPoint.y + nudgeY + 8}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 className={styles.radarValue}
@@ -203,8 +207,28 @@ function classifySlider(sliderVelo, sliderWhiff, fastballVelo) {
   return score >= 3 ? '스위퍼' : '슬라이더';
 }
 
+// 능력치 연도 가중치와 동일하게 최근 시즌 우선 블렌딩
+const PITCH_YEAR_WEIGHTS = [12, 5, 3, 2, 1];
+
+/* ── 구종별 연도 가중 val100 계산 ── */
+function calcWeightedVal100(allPitchStats, type) {
+  if (!Array.isArray(allPitchStats) || !allPitchStats.length) return null;
+  const key = `val100_${type}`;
+  let weightedSum = 0;
+  let totalWeight = 0;
+  allPitchStats.slice(0, 5).forEach((stats, i) => {
+    const val = stats[key];
+    if (val != null) {
+      const w = PITCH_YEAR_WEIGHTS[i] ?? 0;
+      weightedSum += Number(val) * w;
+      totalWeight += w;
+    }
+  });
+  return totalWeight > 0 ? weightedSum / totalWeight : null;
+}
+
 /* ── 구종 정보 추출 (사용하는 구종만) ── */
-function getPitchItems(pitchStats) {
+function getPitchItems(pitchStats, allPitchStats) {
   if (!pitchStats) return [];
 
   const items = PITCH_TYPES
@@ -212,15 +236,19 @@ function getPitchItems(pitchStats) {
       const pct = pitchStats[`pct_${type}`];
       return pct != null && pct > 0;
     })
-    .map(type => ({
-      type,
-      label: PITCH_TYPE_KOR[type],
-      val100Raw: pitchStats[`val100_${type}`] != null ? Number(pitchStats[`val100_${type}`]) : null,
-      val100: pitchStats[`val100_${type}`] != null ? Math.round(Number(pitchStats[`val100_${type}`])) : null,
-      velo: pitchStats[`velo_${type}`] != null ? Number(pitchStats[`velo_${type}`]).toFixed(1) : null,
-      pct: pitchStats[`pct_${type}`] != null ? Number(pitchStats[`pct_${type}`]).toFixed(1) : null,
-      whiff: pitchStats[`whiff_${type}`] != null ? Number(pitchStats[`whiff_${type}`]) : null,
-    }));
+    .map(type => {
+      const weightedVal100 = calcWeightedVal100(allPitchStats, type);
+      return {
+        type,
+        label: PITCH_TYPE_KOR[type],
+        val100Raw: weightedVal100,
+        val100: weightedVal100 != null ? Math.round(weightedVal100) : null,
+        velo:  pitchStats[`velo_${type}`]  != null ? Number(pitchStats[`velo_${type}`]).toFixed(1) : null,
+        pct:   pitchStats[`pct_${type}`]   != null ? Number(pitchStats[`pct_${type}`]).toFixed(1) : null,
+        whiff: pitchStats[`whiff_${type}`] != null ? Number(pitchStats[`whiff_${type}`]) : null,
+        cnt:   pitchStats[`cnt_${type}`]   != null ? Number(pitchStats[`cnt_${type}`]) : null,
+      };
+    });
 
   // 슬라이더 → 스위퍼 재분류
   const sliderItem = items.find(i => i.type === 'slider');
@@ -234,6 +262,22 @@ function getPitchItems(pitchStats) {
 }
 
 /* ── val100을 리그 평균 대비 z-score로 20~80 스케일 변환 ── */
+
+// 구종별 구속 블렌드 비율 — 패스트볼은 구속이 핵심, 변화구는 결과(val100) 위주
+// changeup/fork는 절대 구속보다 패스트볼과의 구속차가 중요하므로 블렌드 제외
+const VELO_BLEND_RATIO = {
+  '4seam':   0.35,
+  '2seam':   0.25,
+  sinker:    0.25,
+  cutter:    0.20,
+  slider:    0.10,
+  curve:     0.05,
+  changeup:  0.00,
+  fork:      0.00,
+  knuckle:   0.00,
+  other:     0.10,
+};
+
 // 구속 기반 구종 등급 추정 벤치마크 (KBO 평균 구속, km/h)
 const VELO_BENCHMARKS = {
   '4seam': { mean: 145, std: 3.5 },
@@ -262,7 +306,15 @@ const WHIFF_BENCHMARKS = {
   other:   { mean: 22, std: 7 },
 };
 
-function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false } = {}) {
+function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false, cnt = null } = {}) {
+  // 소표본 회귀: 투구수 300개 미만이면 리그 평균으로 부분 회귀
+  // 36개짜리 val100=5.48 같은 극단치를 현실적 수준으로 보정
+  const CNT_THRESHOLD = 300;
+  if (val100 != null && cnt != null && leagueStats?.[type]) {
+    const w = Math.min(1, cnt / CNT_THRESHOLD);
+    val100 = val100 * w + leagueStats[type].mean * (1 - w);
+  }
+
   let score = null;
 
   // whiff + velo 복합 추정
@@ -289,28 +341,41 @@ function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = fa
     if (wv != null && val100 != null) {
       const league = leagueStats?.[type];
       const v100Score = league
-        ? 50 + ((val100 - league.mean) / league.std) * 6
-        : 50 + val100 * 8;
+        ? 50 + ((val100 - league.mean) / league.std) * 10
+        : 50 + val100 * 10;
       score = wv * 0.6 + v100Score * 0.4; // whiff+velo 60%, val100 40%
     } else if (wv != null) {
       score = wv;
     } else if (val100 != null) {
       const league = leagueStats?.[type];
       score = league
-        ? 50 + ((val100 - league.mean) / league.std) * 6
-        : 50 + val100 * 8;
+        ? 50 + ((val100 - league.mean) / league.std) * 10
+        : 50 + val100 * 10;
     }
   } else if (val100 != null) {
-    // KBO: val100 리그 z-score 기반
+    // KBO: val100 리그 z-score 기반 (구종별 독립 분포) — *10으로 구종 완성도 표현
     const league = leagueStats?.[type];
     score = league
-      ? 50 + ((val100 - league.mean) / league.std) * 6
-      : 50 + val100 * 8;
+      ? 50 + ((val100 - league.mean) / league.std) * 10
+      : 50 + val100 * 10;
+
+    // 패스트볼 계열은 구속도 블렌딩 (구속이 구위의 핵심 요소)
+    const veloBlend = VELO_BLEND_RATIO[type] ?? 0;
+    if (veloBlend > 0 && velo != null) {
+      const bench = VELO_BENCHMARKS[type];
+      if (bench) {
+        const veloScore = 50 + ((Number(velo) - bench.mean) / bench.std) * 10;
+        score = score * (1 - veloBlend) + veloScore * veloBlend;
+      }
+    }
   } else {
     score = calcWhiffVelo();
   }
 
   if (score == null) return null;
+
+  // 분포 확대: 50 기준 1.10배 stretch
+  score = 50 + (score - 50) * 1.10;
 
   // 신인 페널티: 검증되지 않은 루키는 구종 점수 할인
   if (isRookie) {
@@ -328,7 +393,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
   const age = calcAge(player.birthdate);
 
   // 구종 데이터
-  const pitchItems = isPitcher ? getPitchItems(player.pitchStats) : [];
+  const pitchItems = isPitcher ? getPitchItems(player.pitchStats, player.allPitchStats) : [];
   const hasPitchData = pitchItems.length > 0;
 
   // 신인/외국 리그 판별
@@ -339,7 +404,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
   // 레이더 차트용 데이터 (리그 평균 대비 z-score 정규화)
   const radarItems = pitchItems.map(item => ({
     label: item.label,
-    value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats, item.velo, item.whiff, { isRookie, isForeign }),
+    value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats, item.velo, item.whiff, { isRookie, isForeign, cnt: item.cnt }),
   }));
 
   // 투수 5대 능력치
@@ -391,12 +456,12 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
 
             <div className={styles.headerRight}>
               {overall != null && (
-                <div className={styles.ovrCircle} style={{ borderColor: grade.color + '88' }}>
-                  <span className={styles.ovrGrade} style={{ color: grade.color }}>
+                <div className={styles.ovrCircle} style={{ borderColor: grade.color, background: grade.background || grade.color }}>
+                  <span className={styles.ovrGrade} style={{ color: grade.textColor }}>
                     {grade.label}
                   </span>
-                  <span className={styles.ovrNum}>{overall}</span>
-                  <span className={styles.ovrLabel}>OVR</span>
+                  <span className={styles.ovrNum} style={{ color: grade.textColor }}>{overall}</span>
+                  <span className={styles.ovrLabel} style={{ color: grade.textColor + 'bb' }}>OVR</span>
                 </div>
               )}
               {player.number && (

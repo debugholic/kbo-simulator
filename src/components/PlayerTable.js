@@ -113,7 +113,7 @@ export default function PlayerTable({ players, teamsMap, playerType, sortKey, so
                 <td className={styles.tdCenter}>{age ?? '-'}</td>
                 <td className={styles.tdOvr}>
                   {overall != null ? (
-                    <span className={styles.ovrBadge} style={{ color: grade.color, borderColor: grade.color + '44' }}>
+                    <span className={styles.ovrBadge} style={{ color: grade.textColor, borderColor: grade.color, background: grade.background || grade.color }}>
                       <span className={styles.ovrGrade}>{grade.label}</span>
                       <span className={styles.ovrNum}>{overall}</span>
                     </span>

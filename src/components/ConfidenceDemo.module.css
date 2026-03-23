@@ -1,0 +1,171 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 820px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 헤더 */
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modalTitle { font-size: 16px; font-weight: 700; color: var(--text); }
+.modalSub   { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.closeBtn { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; padding: 2px 6px; }
+
+/* 슬라이더 */
+.sliderSection { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.sliderTop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sliderLabel { font-size: 12px; font-weight: 600; color: var(--text2); }
+.seasonLabel { font-size: 12px; font-weight: 700; color: var(--text); }
+.slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--bg2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.sliderTicks { display: flex; justify-content: space-between; font-size: 10px; color: var(--text2); margin-top: 4px; }
+
+/* 시즌 마일스톤 버튼 */
+.milestones {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.milestone {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.milestoneActive {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+  font-weight: 700;
+}
+
+/* 토글 */
+.toggleRow { padding: 10px 24px; display: flex; align-items: center; gap: 10px; }
+.toggleBtn {
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  cursor: pointer;
+  font-weight: 600;
+}
+.toggleOn { background: #1a1a1a22; color: var(--text); border-color: var(--text2); }
+.toggleNote { font-size: 11px; color: var(--text2); opacity: 0.6; }
+
+/* 카드 그리드 */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+
+.playerCard {
+  padding: 16px 20px;
+  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+.playerCard:last-child { border-right: none; }
+
+.cardHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.cardName { font-size: 15px; font-weight: 700; color: var(--text); }
+.cardSub  { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.typeBadge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; display: block; text-align: center; }
+.ipInfo { font-size: 10px; color: var(--text2); margin-top: 4px; text-align: right; }
+
+/* 신뢰도 바 */
+.confRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.confTrack {
+  flex: 1;
+  height: 4px;
+  background: var(--bg2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.confFill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.confLabel { font-size: 10px; font-weight: 700; white-space: nowrap; transition: color 0.3s; }
+
+/* 능력치 rows */
+.stats { display: flex; flex-direction: column; gap: 8px; }
+.statRow { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 8px; }
+.statLabel { font-size: 11px; color: var(--text2); text-align: right; }
+
+/* 범위 바 */
+.barOuter { display: flex; align-items: center; gap: 8px; }
+.barTrack {
+  flex: 1;
+  height: 8px;
+  background: var(--bg2);
+  border-radius: 4px;
+  position: relative;
+  overflow: visible;
+}
+.rangeZone {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-radius: 4px;
+  transition: left 0.3s ease, width 0.3s ease;
+}
+.centerBar {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.trueMarker {
+  position: absolute;
+  top: -3px; bottom: -3px;
+  width: 2px;
+  background: #fff;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  transition: left 0.3s ease;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+}
+.barNum { font-size: 12px; font-weight: 600; color: var(--text); min-width: 36px; text-align: right; }
+.rangeNum { font-size: 11px; color: var(--text2); }
+.tilde { margin: 0 1px; }

@@ -27,7 +27,7 @@ export default function TeamSelector({ teams, selected, onSelect }) {
             style={selected === team.id ? {
               borderColor: displayColor + '99',
               background: displayColor + '22',
-              color: '#fff',
+              color: '#1a1a1a',
             } : {}}
           >
             <span className={styles.dot} style={{ background: displayColor }} />

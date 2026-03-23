@@ -59,11 +59,14 @@ const STUFF_METRICS = [
 ];
 
 // Command: 투구 위치 정밀도 — 원하는 곳에 꽂는 능력, 가운데로 안 밀림
-// p_per_ip는 quality stats 없을 때 단독으로 command를 결정하면 왜곡되므로 폴백에서만 사용
 const COMMAND_METRICS = [
   { key: 'zone_mid_pitch_pct',   source: 'quality', dir: 'lower',  weight: 1.5 },
-  { key: 'zone_in_pitch_pct',    source: 'quality', dir: 'higher', weight: 1.2 },
+  { key: 'zone_in_pitch_pct',    source: 'quality', dir: 'higher', weight: 0.5 },  // 1.2→0.5: 파워 불펜은 존 밖 승부가 전략 — 과도한 패널티 완화
+  { key: 'zone_out_swing_pct',   source: 'quality', dir: 'higher', weight: 0.8 },  // 존 밖 헛스윙 유도 — 진짜 로케이션 커맨드
+  { key: 'looking_pct',          source: 'quality', dir: 'higher', weight: 1.2 },  // called strike% → 엣지 로케이션
   { key: 'first_pitch_s_pct',    source: 'quality', dir: 'higher', weight: 1.0 },
+  { key: 'k_bb',                 source: 'season',  dir: 'higher', weight: 1.0 },  // K/BB: K를 잡으며 BB를 안 주는 정밀 압도
+  { key: 'p_per_ip',             source: 'season',  dir: 'lower',  weight: 0.8 },  // 이닝당 투구수: 낮을수록 스트라이크 효율 높음
 ];
 
 // Control: 볼넷 억제, 안정적 스트라이크 제어
@@ -76,10 +79,10 @@ const CONTROL_METRICS = [
 ];
 
 const HOLDING_METRICS = [
-  { key: 'sb_pct',               source: 'running', dir: 'lower',  weight: 1.0 },
-  { key: 'sba_per_ip',           source: 'derived', dir: 'lower',  weight: 1.0 },
-  { key: 'pick_out_per_ip',      source: 'derived', dir: 'higher', weight: 0.8 },
-  { key: 'bk_per_ip',            source: 'derived', dir: 'lower',  weight: 0.6 },
+  { key: 'sb_pct',               source: 'running', dir: 'lower',  weight: 1.5 },  // 도루 성공률 (1.0→1.5)
+  { key: 'sba_per_ip',           source: 'derived', dir: 'lower',  weight: 1.2 },  // 도루 시도 억제 (1.0→1.2)
+  { key: 'bk_per_ip',            source: 'derived', dir: 'lower',  weight: 0.8 },  // 보크 (0.6→0.8)
+  { key: 'pick_out_per_ip',      source: 'derived', dir: 'higher', weight: 0.4 },  // 견제 아웃 (0.8→0.4)
 ];
 
 // Stamina — 선발: 경기당 이닝 + 경기당 투구수 (rate 지표만)
@@ -115,7 +118,7 @@ function starterGsBonus(gs) {
 }
 
 export const EVAL_CATEGORIES = [
-  { key: 'stuff',    label: 'Stuff',    labelKor: '구위',     metrics: STUFF_METRICS, zMultiplier: 8 },
+  { key: 'stuff',    label: 'Stuff',    labelKor: '구위',     metrics: STUFF_METRICS },
   { key: 'command',  label: 'Command',  labelKor: '제구',     metrics: COMMAND_METRICS, zMultiplier: 14 },
   { key: 'control',  label: 'Control',  labelKor: '컨트롤',   metrics: CONTROL_METRICS },
   { key: 'holding',  label: 'Holding',  labelKor: '주자억제', metrics: HOLDING_METRICS },
@@ -170,13 +173,16 @@ function getPlayerValue(metric, seasonStats, qualityStats, runningStats) {
       return (Number(seasonStats?.wp ?? 0) / ip) * 9;
     }
     if (key === 'sba_per_ip') {
-      return (Number(runningStats?.sba ?? 0) / ip) * 9;
+      if (!runningStats) return null;
+      return (Number(runningStats.sba ?? 0) / ip) * 9;
     }
     if (key === 'pick_out_per_ip') {
-      return (Number(runningStats?.pick_out_all ?? 0) / ip) * 9;
+      if (!runningStats) return null;
+      return (Number(runningStats.pick_out_all ?? 0) / ip) * 9;
     }
     if (key === 'bk_per_ip') {
-      return (Number(runningStats?.bk ?? seasonStats?.bk ?? 0) / ip) * 9;
+      if (!runningStats) return null;
+      return (Number(runningStats.bk ?? seasonStats?.bk ?? 0) / ip) * 9;
     }
     if (key === 'ip_per_gs') {
       const gs = Number(seasonStats?.gs ?? 0);
@@ -397,7 +403,7 @@ function calcBlendedCategoryScore(
       const adjusted = leagueMean + (raw - leagueMean) * regressionFactor;
       let z = (adjusted - leagueMean) / stats.std;
       if (metric.dir === 'lower') z = -z;
-      z = Math.max(-3.5, Math.min(3.5, z));
+      z = Math.max(-3.7, Math.min(3.7, z));
 
       zSum += z * metric.weight;
       metricW += metric.weight;
@@ -452,7 +458,7 @@ function calcBlendedStaminaScore(playerYearData, maxYear, leagueZOffset = 0) {
       const adjusted = bench.mean + (raw - bench.mean) * regressionFactor;
       let z = (adjusted - bench.mean) / bench.std;
       if (metric.dir === 'lower') z = -z;
-      z = Math.max(-3.5, Math.min(3.5, z));
+      z = Math.max(-3.7, Math.min(3.7, z));
 
       zSum += z * metric.weight;
       metricW += metric.weight;
@@ -556,11 +562,17 @@ export function evaluatePitcher(playerData, leagueAvgs, stdDevs, sourceLeague = 
       z += -(fip - 4.2) / 0.7; n++;
       z += -(whip - 1.35) / 0.15; n++;
       if (!isNaN(kbb)) { z += (kbb - 2.5) / 0.8; n++; }
-      // P/IP: KBO 전용 (외국 리그는 투구 페이스가 달라 왜곡됨)
-      if (!isNaN(ppip) && sourceLeague === 'KBO') { z += -(ppip - 16) / 1.5; n++; }
+      // P/IP: KBO 전용 (외국 리그는 투구 페이스가 달라 왜곡됨) — quality stats 없을 때만 사용
+      if (!isNaN(ppip) && sourceLeague === 'KBO') { z += -(ppip - 17.2) / 0.8; n++; }
       const avgZ = z / n + (seasonOffsets.command || 0);
       result.command = Math.max(floor, Math.min(80, Math.round(50 + avgZ * 10)));
     }
+  }
+
+  // 주자억제: running stats가 전혀 없으면 리그 평균(50)으로 fallback
+  if (result.holding == null) {
+    const hasRunningData = playerYearData.some(d => d.runningStats != null);
+    result.holding = hasRunningData ? null : 50;
   }
 
   // Stamina — 시즌별 고정 벤치마크 + 선발 보너스 (IP×연도가중 블렌딩)

@@ -3,6 +3,9 @@ import TeamSelector from './components/TeamSelector';
 import PlayerTable from './components/PlayerTable';
 import PlayerDetail from './components/PlayerDetail';
 import FilterBar from './components/FilterBar';
+import ScoutingDemo from './components/ScoutingDemo';
+import ConfidenceDemo from './components/ConfidenceDemo';
+import GrowthSimDemo from './components/GrowthSimDemo';
 import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor, calcAge } from './utils';
 import { useData } from './hooks/useData';
 import styles from './App.module.css';
@@ -17,6 +20,9 @@ export default function App() {
   const [sortKey, setSortKey] = useState('overall');
   const [sortDir, setSortDir] = useState('desc');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [showScouting, setShowScouting] = useState(false);
+  const [showConfidence, setShowConfidence] = useState(false);
+  const [showGrowthSim, setShowGrowthSim] = useState(false);
 
   const handlePlayerType = useCallback((type) => {
     setPlayerType(type);
@@ -127,8 +133,32 @@ export default function App() {
               <strong>{teams.length || 10}</strong> 구단
             </span>
           </div>
+          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+            <button
+              onClick={() => setShowScouting(true)}
+              style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, background: '#1976D222', border: '1px solid #1976D244', color: '#1976D2', cursor: 'pointer', fontWeight: 600 }}
+            >
+              🌐 용병 스카우팅
+            </button>
+            <button
+              onClick={() => setShowConfidence(true)}
+              style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, background: '#9C27B022', border: '1px solid #9C27B044', color: '#9C27B0', cursor: 'pointer', fontWeight: 600 }}
+            >
+              📊 능력치 가시성
+            </button>
+            <button
+              onClick={() => setShowGrowthSim(true)}
+              style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, background: '#E6500022', border: '1px solid #E6500044', color: '#E65000', cursor: 'pointer', fontWeight: 600 }}
+            >
+              📈 성장 시뮬레이션
+            </button>
+          </div>
         </div>
       </header>
+
+      {showScouting && <ScoutingDemo onClose={() => setShowScouting(false)} />}
+      {showConfidence && <ConfidenceDemo onClose={() => setShowConfidence(false)} />}
+      {showGrowthSim && <GrowthSimDemo onClose={() => setShowGrowthSim(false)} />}
 
       <main className={styles.main}>
         <TeamSelector

@@ -1,0 +1,310 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 헤더 */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 0;
+}
+.headerLeft { display: flex; gap: 8px; align-items: center; }
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.leagueBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #2196F322;
+  color: #2196F3;
+}
+.closeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+/* 선수 정보 */
+.playerInfo {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2196F3, #1565C0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatarText { color: #fff; font-size: 16px; font-weight: 700; }
+.nameKor { font-size: 18px; font-weight: 700; color: var(--text); }
+.nameEng { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.meta { font-size: 12px; color: var(--text2); }
+.prevTeam { font-size: 11px; color: var(--text2); margin-top: 3px; opacity: 0.7; }
+
+/* 섹션 */
+.body { padding: 0 20px; }
+.section { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.section:last-child { border-bottom: none; }
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text2);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.leagueTag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--bg2);
+  color: var(--text2);
+  font-weight: 600;
+}
+
+/* 성적 그리드 */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.statRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+.statLabel { font-size: 10px; color: var(--text2); margin-bottom: 4px; }
+.statValue { font-size: 15px; font-weight: 700; color: var(--text); }
+.statSub { font-size: 10px; color: var(--text2); }
+
+/* ERA 범위 */
+.eraRange {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eraLow  { font-size: 14px; font-weight: 700; color: #4CAF50; min-width: 36px; }
+.eraHigh { font-size: 14px; font-weight: 700; color: #E57373; min-width: 36px; text-align: right; }
+.eraBarWrap { flex: 1; }
+.eraBar {
+  height: 8px;
+  background: var(--bg2);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.eraFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #4CAF50, #E57373);
+  border-radius: 4px;
+}
+.eraAxisLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text2);
+  margin-top: 3px;
+}
+.eraNote { font-size: 10px; color: var(--text2); margin-top: 8px; opacity: 0.7; }
+
+/* 힌트 */
+.hints { display: flex; flex-direction: column; gap: 7px; }
+.hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg2);
+  border-radius: 8px;
+  border-left: 3px solid;
+}
+.hintIcon { font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+.hintText { font-size: 12px; color: var(--text); line-height: 1.4; }
+
+/* 구종 그리드 */
+.pitchGrid { display: flex; flex-direction: column; gap: 6px; }
+.pitchHeader {
+  display: grid;
+  grid-template-columns: 72px 72px 1fr;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.pitchRow {
+  display: grid;
+  grid-template-columns: 72px 72px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.pitchName { font-size: 13px; font-weight: 600; color: var(--text); }
+.pitchVelo { font-size: 12px; color: var(--text2); }
+.pitchPctWrap { display: flex; align-items: center; gap: 6px; }
+.pitchPctBar {
+  flex: 1;
+  height: 5px;
+  background: var(--bg3, var(--bg2));
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pitchPctFill {
+  height: 100%;
+  background: #2196F3;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.pitchPct { font-size: 11px; color: var(--text2); min-width: 28px; text-align: right; }
+
+/* 계약 후 공개 */
+.revealBtn {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  cursor: pointer;
+}
+.revealed { display: flex; flex-direction: column; gap: 8px; }
+.hiddenStat {
+  display: grid;
+  grid-template-columns: 48px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text2);
+}
+.hiddenBar {
+  height: 6px;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.adaptLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* 1시즌 시뮬 */
+.simNote {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text3);
+  margin-left: 6px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.simGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.simCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 8px 4px;
+  gap: 3px;
+}
+.simLabel { font-size: 10px; color: var(--text2); }
+.simValue { font-size: 16px; font-weight: 700; color: var(--text); }
+.simAdaptNote {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* 액션 */
+.actions {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+.rerollBtn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.signBtn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1976D2, #1565C0);
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.signedLabel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4CAF50;
+}

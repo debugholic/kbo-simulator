@@ -1,12 +1,12 @@
 // 능력치 등급 계산
 export function getGrade(value) {
-  if (!value) return { label: '-', color: '#555570' };
-  if (value >= 73) return { label: 'S', color: '#FFD700' };
-  if (value >= 66) return { label: 'A', color: '#4CAF50' };
-  if (value >= 58) return { label: 'B', color: '#2196F3' };
-  if (value >= 50) return { label: 'C', color: '#9E9E9E' };
-  if (value >= 42) return { label: 'D', color: '#795548' };
-  return { label: 'E', color: '#F44336' };
+  if (!value) return { label: '-', color: '#555570', textColor: '#1a1a1a' };
+  if (value >= 73) return { label: 'S', color: '#D4A017', background: 'linear-gradient(135deg, #FFD700, #D4A017)', textColor: '#1a1a1a' };
+  if (value >= 66) return { label: 'A', color: '#4CAF50', background: 'linear-gradient(135deg, #BEE8C1, #5CB860)', textColor: '#1a1a1a' };
+  if (value >= 58) return { label: 'B', color: '#2196F3', background: 'linear-gradient(135deg, #A8D8FC, #4DA3E8)', textColor: '#1a1a1a' };
+  if (value >= 50) return { label: 'C', color: '#9E9E9E', background: 'linear-gradient(135deg, #EBEBEB, #9E9E9E)', textColor: '#1a1a1a' };
+  if (value >= 42) return { label: 'D', color: '#BA4CC8', background: 'linear-gradient(135deg, #E8CCEF, #CC6ED9)', textColor: '#1a1a1a' };
+  return { label: 'E', color: '#E53935', background: 'linear-gradient(135deg, #F9ADAB, #EF5350)', textColor: '#1a1a1a' };
 }
 
 // 포지션 그룹 분류
@@ -36,7 +36,14 @@ export function getOverall(player) {
     let denom = core.length;
     if (e.holding != null) { sum += e.holding * 0.3; denom += 0.3; }
     if (e.stamina != null) { sum += e.stamina * 0.3; denom += 0.3; }
-    return Math.round(sum / denom);
+    const base = Math.round(sum / denom);
+    // 구종 품질 보너스: 사용비율 가중 평균이 리그 평균(50) 초과 시 OVR에 플러스
+    // 평균 이하 구종이어도 깎지 않음 (무기 보상, 패널티 없음)
+    // 구종 품질 보너스
+    const qualityBonus   = e.pitchQuality  != null ? Math.max(0, (e.pitchQuality  - 50) * 0.08) : 0;
+    // 구종 다양성 보너스 (최대 +1)
+    const diversityBonus = e.pitchDiversity != null ? e.pitchDiversity * 0.25 : 0;
+    return Math.min(80, Math.round(base + qualityBonus + diversityBonus));
   }
 
   const attr = player.attributes;
