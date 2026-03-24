@@ -278,18 +278,18 @@ const VELO_BLEND_RATIO = {
   other:     0.10,
 };
 
-// 구속 기반 구종 등급 추정 벤치마크 (KBO 평균 구속, km/h)
-const VELO_BENCHMARKS = {
-  '4seam': { mean: 145, std: 3.5 },
-  '2seam': { mean: 143, std: 3.5 },
-  cutter:  { mean: 138, std: 3 },
-  curve:   { mean: 125, std: 4 },
-  slider:  { mean: 133, std: 4 },
-  changeup:{ mean: 135, std: 3.5 },
-  sinker:  { mean: 144, std: 3.5 },
-  fork:    { mean: 135, std: 3.5 },
-  knuckle: { mean: 125, std: 5 },
-  other:   { mean: 135, std: 5 },
+// 구속 기반 구종 등급 추정 벤치마크 (리그 데이터 없을 때 폴백)
+const VELO_BENCHMARKS_FALLBACK = {
+  '4seam': { mean: 145.9, std: 4.1 },
+  '2seam': { mean: 143,   std: 4.0 },
+  cutter:  { mean: 137,   std: 4.0 },
+  curve:   { mean: 120.7, std: 4.7 },
+  slider:  { mean: 131.7, std: 5.1 },
+  changeup:{ mean: 131.5, std: 5.8 },
+  sinker:  { mean: 144,   std: 4.0 },
+  fork:    { mean: 135,   std: 4.5 },
+  knuckle: { mean: 125,   std: 5.0 },
+  other:   { mean: 135,   std: 5.0 },
 };
 
 // 구종별 헛스윙률(whiff%) 벤치마크 (KBO 평균, %)
@@ -306,76 +306,57 @@ const WHIFF_BENCHMARKS = {
   other:   { mean: 22, std: 7 },
 };
 
-function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false, cnt = null } = {}) {
-  // 소표본 회귀: 투구수 300개 미만이면 리그 평균으로 부분 회귀
-  // 36개짜리 val100=5.48 같은 극단치를 현실적 수준으로 보정
+function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false, isForeignSignee = false, generatedStuff = null, cnt = null } = {}) {
+  // 소표본 회귀: 투구수 300개 미만이면 평균(0)으로 부분 회귀
   const CNT_THRESHOLD = 300;
-  if (val100 != null && cnt != null && leagueStats?.[type]) {
+  if (val100 != null && cnt != null) {
     const w = Math.min(1, cnt / CNT_THRESHOLD);
-    val100 = val100 * w + leagueStats[type].mean * (1 - w);
+    val100 = val100 * w; // 소표본 → 0(리그 평균)으로 수축
   }
 
   let score = null;
 
-  // whiff + velo 복합 추정
-  const calcWhiffVelo = () => {
-    let veloScore = null;
-    let whiffScore = null;
-    if (velo != null) {
-      const bench = VELO_BENCHMARKS[type];
-      if (bench) veloScore = 50 + ((Number(velo) - bench.mean) / bench.std) * 10;
-    }
-    if (whiff != null) {
-      const bench = WHIFF_BENCHMARKS[type];
-      if (bench) whiffScore = 50 + ((Number(whiff) - bench.mean) / bench.std) * 10;
-    }
-    if (whiffScore != null && veloScore != null) return whiffScore * 0.6 + veloScore * 0.4;
-    if (whiffScore != null) return whiffScore;
-    if (veloScore != null) return veloScore;
-    return null;
+  // velo 점수: 리그 데이터 기반 z-score (없으면 하드코딩 폴백)
+  const calcVeloScore = () => {
+    if (velo == null) return null;
+    // 리그 구종별 velo 통계 우선 사용
+    const leagueVelo = leagueStats?.[type]?.velo;
+    const bench = leagueVelo || VELO_BENCHMARKS_FALLBACK[type];
+    return bench ? 50 + ((Number(velo) - bench.mean) / bench.std) * 10 : null;
   };
 
-  // 외국 리그: val100 스케일이 KBO와 다르므로 whiff+velo 우선, val100 보조
-  if (isForeign) {
-    const wv = calcWhiffVelo();
-    if (wv != null && val100 != null) {
-      const league = leagueStats?.[type];
-      const v100Score = league
-        ? 50 + ((val100 - league.mean) / league.std) * 10
-        : 50 + val100 * 10;
-      score = wv * 0.6 + v100Score * 0.4; // whiff+velo 60%, val100 40%
-    } else if (wv != null) {
-      score = wv;
-    } else if (val100 != null) {
-      const league = leagueStats?.[type];
-      score = league
-        ? 50 + ((val100 - league.mean) / league.std) * 10
-        : 50 + val100 * 10;
-    }
-  } else if (val100 != null) {
-    // KBO: val100 리그 z-score 기반 (구종별 독립 분포) — *10으로 구종 완성도 표현
-    const league = leagueStats?.[type];
-    score = league
-      ? 50 + ((val100 - league.mean) / league.std) * 10
-      : 50 + val100 * 10;
+  if (val100 != null) {
+    // val100 직접 사용: 이미 리그 평균 대비 품질 지표 (평균 ~0, std ~1.2)
+    // × 8로 스케일링하여 20-80 분포에 매핑 (std 1.2 × 8 ≈ ±10 범위)
+    score = 50 + val100 * 8;
 
-    // 패스트볼 계열은 구속도 블렌딩 (구속이 구위의 핵심 요소)
+    // 패스트볼 계열은 구속도 블렌딩 (리그 벤치마크 std 사용)
     const veloBlend = VELO_BLEND_RATIO[type] ?? 0;
-    if (veloBlend > 0 && velo != null) {
-      const bench = VELO_BENCHMARKS[type];
-      if (bench) {
-        const veloScore = 50 + ((Number(velo) - bench.mean) / bench.std) * 10;
-        score = score * (1 - veloBlend) + veloScore * veloBlend;
+    if (veloBlend > 0) {
+      const vs = calcVeloScore();
+      if (vs != null) {
+        score = score * (1 - veloBlend) + vs * veloBlend;
       }
     }
   } else {
-    score = calcWhiffVelo();
+    // val100 없으면 velo만으로 추정
+    score = calcVeloScore();
   }
 
   if (score == null) return null;
 
   // 분포 확대: 50 기준 1.10배 stretch
   score = 50 + (score - 50) * 1.10;
+
+  // 용병 (KBO 기록 없는 외국인): 실제 외국 데이터 50% + 생성된 stuff 기반 50%
+  // 외국 리그 구종 데이터는 KBO에서 어떻게 나올지 불확실 → 생성 능력치로 보정
+  if (isForeignSignee && generatedStuff != null) {
+    // stuff 기반 구종 점수: stuff에 구종별 편차 부여
+    const isFastball = ['4seam', '2seam', 'sinker'].includes(type);
+    const typeVariance = isFastball ? (Math.random() - 0.5) * 6 : (Math.random() - 0.5) * 10;
+    const stuffScore = generatedStuff + typeVariance;
+    score = score * 0.5 + stuffScore * 0.5;
+  }
 
   // 신인 페널티: 검증되지 않은 루키는 구종 점수 할인
   if (isRookie) {
@@ -400,11 +381,15 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
   const sourceLeague = player.pitcherEval?.sourceLeague || 'KBO';
   const isRookie = sourceLeague === 'ROOKIE';
   const isForeign = ['AAA', 'MLB', 'NPB', 'NPB_FARM'].includes(sourceLeague);
+  const isForeignSignee = !!player.pitcherEval?.isForeignSignee;
+  const generatedStuff = isForeignSignee ? player.pitcherEval?.stuff : null;
 
   // 레이더 차트용 데이터 (리그 평균 대비 z-score 정규화)
   const radarItems = pitchItems.map(item => ({
     label: item.label,
-    value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats, item.velo, item.whiff, { isRookie, isForeign, cnt: item.cnt }),
+    value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats, item.velo, item.whiff, {
+      isRookie, isForeign, isForeignSignee, generatedStuff, cnt: item.cnt,
+    }),
   }));
 
   // 투수 5대 능력치
@@ -525,6 +510,95 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
             </div>
           </div>
         )}
+
+        {/* 1-1. 용병 스카우팅 (KBO 기록 없는 외국인) */}
+        {isPitcher && pitcherEval?.isForeignSignee && pitcherEval.scouting && (() => {
+          const sc = pitcherEval.scouting;
+          const fitGrade = sc.kboFit >= 80 ? { g: 'S', l: '최적합', c: '#D4A017' }
+            : sc.kboFit >= 65 ? { g: 'A', l: '적합',   c: '#4CAF50' }
+            : sc.kboFit >= 50 ? { g: 'B', l: '보통',   c: '#2196F3' }
+            : sc.kboFit >= 35 ? { g: 'C', l: '불확실', c: '#9E9E9E' }
+            : sc.kboFit >= 20 ? { g: 'D', l: '부적합', c: '#CC6ED9' }
+            :                   { g: 'E', l: '고위험', c: '#E53935' };
+          const hintColors = { positive: '#4CAF50', neutral: '#9E9E9E', negative: '#E57373' };
+          const hintIcons  = { positive: '\u2713', neutral: '\u00b7', negative: '!' };
+          const cats = ['stuff', 'command', 'control', 'holding', 'stamina'];
+          const catKor = { stuff: '구위', command: '제구', control: '컨트롤', holding: '억제', stamina: '체력' };
+          return (
+            <div className={styles.section}>
+              <div className={styles.signeeHeader}>
+                <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>용병 스카우팅</h2>
+                <span className={styles.signeeBadge}>{sourceLeague}</span>
+                <span className={styles.signeeAdapt}>{sc.adaptationType.label}</span>
+              </div>
+
+              <div className={styles.signeeGrid}>
+                <div className={styles.signeeMetric}>
+                  <span className={styles.signeeMetricLabel}>KBO 적합도</span>
+                  <span className={styles.signeeMetricValue} style={{ color: fitGrade.c }}>
+                    {fitGrade.g} <span style={{ fontSize: 12, fontWeight: 500 }}>({fitGrade.l})</span>
+                  </span>
+                </div>
+                <div className={styles.signeeMetric}>
+                  <span className={styles.signeeMetricLabel}>1년차 적응계수</span>
+                  <span className={styles.signeeMetricValue}>
+                    {Math.round(sc.adaptationType.curve[0] * 100)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.signeeCompare}>
+                {cats.map(key => {
+                  const est = sc.estimate[key];
+                  const proj = sc.projected[key];
+                  if (est == null) return null;
+                  return (
+                    <div key={key} className={styles.signeeCompareRow}>
+                      <span className={styles.signeeCompareLabel}>{catKor[key]}</span>
+                      <div className={styles.signeeBarWrap}>
+                        <div className={styles.signeeBar}>
+                          <div
+                            className={styles.signeeBarProjected}
+                            style={{
+                              width: `${((proj - 20) / 60) * 100}%`,
+                              background: '#FF6F00',
+                            }}
+                          />
+                          <div
+                            className={styles.signeeBarFill}
+                            style={{
+                              width: `${((est - 20) / 60) * 100}%`,
+                              background: getBarColor(est),
+                            }}
+                          />
+                        </div>
+                        <span className={styles.signeeBarVal} style={{ color: getBarColor(est) }}>{est}</span>
+                        {proj !== est && (
+                          <span className={styles.signeeBarVal} style={{ color: '#FF6F00', fontSize: 10, opacity: 0.7 }}>
+                            ({proj})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {sc.hints.length > 0 && (
+                <div className={styles.signeeHints}>
+                  {sc.hints.map((hint, i) => (
+                    <div key={i} className={styles.signeeHint} style={{ borderLeftColor: hintColors[hint.type] }}>
+                      <span className={styles.signeeHintIcon} style={{ color: hintColors[hint.type] }}>
+                        {hintIcons[hint.type]}
+                      </span>
+                      {hint.text}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 2. 스카우팅 리포트 */}
         {player.attributes?.scouting_report && (

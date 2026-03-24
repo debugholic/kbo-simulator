@@ -400,3 +400,140 @@
   line-height: 1.8;
   margin: 0;
 }
+
+/* ── 용병 스카우팅 ── */
+.signeeHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.signeeBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #FF6F0033;
+  color: #FF6F00;
+  letter-spacing: 0.5px;
+}
+
+.signeeAdapt {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.signeeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.signeeMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--bg1);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.signeeMetricLabel {
+  font-size: 10px;
+  color: var(--text3);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.signeeMetricValue {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.signeeHints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.signeeHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid;
+  background: var(--bg1);
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+
+.signeeHintIcon {
+  font-weight: 700;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.signeeCompare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.signeeCompareRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.signeeCompareLabel {
+  font-size: 11px;
+  color: var(--text3);
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.signeeBarWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.signeeBar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg1);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.signeeBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.signeeBarProjected {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+  opacity: 0.35;
+}
+
+.signeeBarVal {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  width: 24px;
+  text-align: right;
+}

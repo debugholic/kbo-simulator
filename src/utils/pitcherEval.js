@@ -9,6 +9,11 @@
  * - 20-80 스케일 출력
  */
 
+import {
+  ADAPTATION_TYPES, LEAGUE_BASE, pickWeighted, clamp,
+  generateHints,
+} from './foreignPlayerGen';
+
 // 리그 연도별 stddev → 개인 수준 편차 근사치로 변환하는 배율
 const LEAGUE_STDDEV_SCALE = 4;
 
@@ -121,7 +126,7 @@ export const EVAL_CATEGORIES = [
   { key: 'stuff',    label: 'Stuff',    labelKor: '구위',     metrics: STUFF_METRICS },
   { key: 'command',  label: 'Command',  labelKor: '제구',     metrics: COMMAND_METRICS, zMultiplier: 14 },
   { key: 'control',  label: 'Control',  labelKor: '컨트롤',   metrics: CONTROL_METRICS },
-  { key: 'holding',  label: 'Holding',  labelKor: '주자억제', metrics: HOLDING_METRICS },
+  { key: 'holding',  label: 'Holding',  labelKor: '주자억제', metrics: HOLDING_METRICS, zMultiplier: 6 },
   { key: 'stamina',  label: 'Stamina',  labelKor: '체력',     metrics: null },
 ];
 
@@ -646,5 +651,103 @@ export function evaluateRookie(scouting) {
     control: Math.max(20, Math.min(80, control)),
     holding,
     stamina,
+  };
+}
+
+/* ── 외국인 용병 평가 (KBO 기록 없는 외국인 = 가상 선수) ── */
+
+// 외국 스탯 참고 비중 (나머지는 리그 범위 내 랜덤)
+const STAT_ANCHOR_WEIGHT = {
+  MLB: 0.40,
+  AAA: 0.25,
+  NPB: 0.30,
+  NPB_FARM: 0.20,
+};
+
+function rand(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+/**
+ * KBO 기록 없는 외국인 투수 — 능력치 생성 (가상 선수)
+ *
+ * foreignPlayerGen과 동일한 방식으로 5대 능력치를 랜덤 생성하되,
+ * evaluatePitcher의 외국 스탯 추정치를 앵커(참고)로 활용.
+ * 구종 데이터는 실제 외국 리그 기록을 그대로 사용.
+ *
+ * @param {Object} baseEval - evaluatePitcher()의 결과 (외국 스탯 참고용)
+ * @param {string} sourceLeague - 'MLB' | 'AAA' | 'NPB' | 'NPB_FARM'
+ * @returns pitcherEval 호환 객체 + scouting 메타데이터
+ */
+export function evaluateForeignSignee(baseEval, sourceLeague) {
+  if (!baseEval || baseEval.stuff == null) return null;
+
+  const anchorW = STAT_ANCHOR_WEIGHT[sourceLeague] || 0.25;
+  const leagueRange = LEAGUE_BASE[sourceLeague] || LEAGUE_BASE.AAA;
+  const starter = baseEval.isStarterRole;
+  const role = starter ? 'SP' : 'RP';
+
+  // 외국 스탯 기반 추정치 (참고용)
+  const estimate = {};
+  for (const key of ['stuff', 'command', 'control', 'holding', 'stamina']) {
+    estimate[key] = baseEval[key];
+  }
+
+  // ── 능력치 생성 (LEAGUE_BASE 랜덤 + 외국 스탯 앵커) ──
+  const ability = {};
+  for (const key of ['stuff', 'command', 'control']) {
+    const range = leagueRange[key];
+    const randomVal = rand(range[0], range[1]);
+    const eliteBonus = Math.random() < 0.15 ? rand(4, 10) : 0;
+    const anchor = estimate[key] != null ? estimate[key] : (range[0] + range[1]) / 2;
+    ability[key] = clamp(anchor * anchorW + randomVal * (1 - anchorW) + eliteBonus);
+  }
+  // holding: 외국 리그 주자억제 샘플 극소 → 50 중심 좁은 분포
+  ability.holding = clamp(rand(46, 54));
+  ability.stamina = starter ? clamp(rand(52, 70)) : clamp(rand(44, 62));
+
+  // ── 적응 유형 ──
+  const adaptationType = pickWeighted(ADAPTATION_TYPES);
+
+  // ── KBO 적합도 ──
+  const kboFit = clamp(
+    (ability.stuff - 40) * 0.6 + (ability.control - 40) * 0.4
+    + (adaptationType.id === 'bust' ? -15 : adaptationType.id === 'early' ? 10 : 0)
+    + rand(-10, 10),
+    0, 100
+  );
+
+  // ── 1년차 예상 (적응계수 반영) ──
+  const adaptFactor1 = adaptationType.curve[0];
+  const projected = {};
+  for (const key of ['stuff', 'command', 'control', 'holding', 'stamina']) {
+    projected[key] = clamp(50 + (ability[key] - 50) * adaptFactor1);
+  }
+
+  // ── 스카우팅 힌트 ──
+  const hints = generateHints(
+    ability.stuff, ability.command, ability.control,
+    adaptationType, kboFit, sourceLeague
+  );
+
+  return {
+    // pitcherEval 호환 — 생성된 능력치가 곧 실제 능력치
+    isStarterRole: starter,
+    sourceLeague,
+    stuff:   ability.stuff,
+    command: ability.command,
+    control: ability.control,
+    holding: ability.holding,
+    stamina: ability.stamina,
+
+    // 용병 스카우팅 메타데이터
+    isForeignSignee: true,
+    scouting: {
+      estimate,            // 외국 스탯 기반 참고 추정치
+      projected,           // 1년차 예상 (적응계수 반영)
+      adaptationType,
+      kboFit,
+      hints,
+    },
   };
 }

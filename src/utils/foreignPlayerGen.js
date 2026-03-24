@@ -1,9 +1,9 @@
 /**
- * 가상 외국인 투수 생성기 (프로토타입)
+ * 외국인 투수 생성 및 스카우팅 시스템
  */
 
 // 적응 유형
-const ADAPTATION_TYPES = [
+export const ADAPTATION_TYPES = [
   { id: 'early',  label: '조기 적응형', curve: [1.00, 1.00, 1.00], prob: 0.25 },
   { id: 'normal', label: '일반 적응형', curve: [0.80, 1.00, 1.00], prob: 0.45 },
   { id: 'slow',   label: '느린 적응형', curve: [0.60, 0.85, 1.00], prob: 0.20 },
@@ -11,7 +11,7 @@ const ADAPTATION_TYPES = [
 ];
 
 // 출신 리그별 능력치 기대값 범위
-const LEAGUE_BASE = {
+export const LEAGUE_BASE = {
   MLB: { stuff: [60, 75], command: [55, 72], control: [55, 70] },
   AAA: { stuff: [50, 68], command: [48, 65], control: [48, 63] },
   NPB: { stuff: [52, 67], command: [52, 68], control: [52, 66] },
@@ -38,7 +38,7 @@ function randInt(min, max) {
   return Math.round(rand(min, max));
 }
 
-function pickWeighted(items) {
+export function pickWeighted(items) {
   const r = Math.random();
   let acc = 0;
   for (const item of items) {
@@ -48,7 +48,7 @@ function pickWeighted(items) {
   return items[items.length - 1];
 }
 
-function clamp(v, min = 20, max = 80) {
+export function clamp(v, min = 20, max = 80) {
   return Math.max(min, Math.min(max, Math.round(v)));
 }
 
@@ -229,11 +229,11 @@ export function generateForeignPitcher(sourceLeague = 'AAA', role = 'SP') {
 }
 
 // 풀에서 랜덤 1개 선택
-function pick(pool) {
+export function pick(pool) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function generateHints(stuff, command, control, adapt, kboFit, league) {
+export function generateHints(stuff, command, control, adapt, kboFit, league) {
   const hints = [];
 
   // ── 구위 ──

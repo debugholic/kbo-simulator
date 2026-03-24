@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { PITCH_TYPES } from '../utils';
-import { calcLeagueStdDevsFromTables, evaluatePitcher, evaluateRookie } from '../utils/pitcherEval';
+import { calcLeagueStdDevsFromTables, evaluatePitcher, evaluateRookie, evaluateForeignSignee } from '../utils/pitcherEval';
 
 /**
  * 구종별 val100 리그 평균/표준편차 계산
@@ -22,25 +22,47 @@ function calcLeaguePitchStats(allPitchStats) {
   }
 
   // 구종별 독립 분포 계산 (포심/변화구 특성이 달라 혼합하면 왜곡됨)
-  const result = {};
-  for (const type of PITCH_TYPES) {
-    const key = `val100_${type}`;
-    const values = latest
-      .map(s => (s[key] != null ? Number(s[key]) : null))
-      .filter(v => v != null);
-
-    if (values.length < 3) continue;
-
-    // 이상치 winsorize: 상위/하위 10% clip (극단치 1~2개가 분포 전체를 왜곡하는 것 방지)
+  // val100 + velo 각각의 mean/std 산출
+  const winsorize = (values) => {
     const sorted = values.slice().sort((a, b) => a - b);
     const lo = Math.floor(sorted.length * 0.10);
     const hi = Math.ceil(sorted.length * 0.90);
-    const trimmed = sorted.length >= 10 ? sorted.slice(lo, hi) : sorted;
-
+    return sorted.length >= 10 ? sorted.slice(lo, hi) : sorted;
+  };
+  const calcStats = (values) => {
+    const trimmed = winsorize(values);
     const mean = trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
     const variance = trimmed.reduce((a, v) => a + (v - mean) ** 2, 0) / trimmed.length;
-    const std = Math.max(Math.sqrt(variance) || 0.5, 0.35);
-    result[type] = { mean, std };
+    return { mean, std: Math.max(Math.sqrt(variance) || 0.5, 0.35) };
+  };
+
+  const result = {};
+  for (const type of PITCH_TYPES) {
+    const entry = {};
+
+    // val100 분포
+    const val100Key = `val100_${type}`;
+    const val100Values = latest.map(s => s[val100Key] != null ? Number(s[val100Key]) : null).filter(v => v != null);
+    if (val100Values.length >= 3) {
+      entry.val100 = calcStats(val100Values);
+    }
+
+    // velo 분포 (구속 z-score에 사용)
+    const veloKey = `velo_${type}`;
+    const veloValues = latest.map(s => s[veloKey] != null ? Number(s[veloKey]) : null).filter(v => v != null && v > 0);
+    if (veloValues.length >= 3) {
+      entry.velo = calcStats(veloValues);
+    }
+
+    if (entry.val100 || entry.velo) {
+      // 하위 호환: result[type].mean/std 는 val100 기준 유지
+      result[type] = {
+        mean: entry.val100?.mean ?? 0,
+        std: entry.val100?.std ?? 1,
+        val100: entry.val100 || null,
+        velo: entry.velo || null,
+      };
+    }
   }
   return result;
 }
@@ -332,6 +354,12 @@ export function useData() {
           }
           if (!p.seasonStats) return p;
           const sourceLeague = p.seasonStats.source_league || 'KBO';
+
+          // KBO 기록 유무 판별: 전체 시즌 중 KBO 기록이 하나라도 있는지
+          const hasKBORecord = (p.allSeasonStats || []).some(
+            s => (s.source_league || 'KBO') === 'KBO'
+          );
+
           const eval5 = evaluatePitcher(
             {
               seasonStats: p.seasonStats, qualityStats: p.qualityStats,
@@ -344,10 +372,20 @@ export function useData() {
             sourceLeague,
             leagueAvgsByYear,
           );
+
           // 구종 품질/다양성을 OVR에 반영하기 위해 pitcherEval에 추가
           const pitchMetrics = calcPitchMetrics(p.pitchStats, leagueStats);
           const pitchQuality  = pitchMetrics?.quality  ?? null;
           const pitchDiversity = pitchMetrics?.diversity ?? 0;
+
+          // KBO 기록 없는 외국인 → 능력치 생성 (구종은 실제 데이터 유지)
+          if (!hasKBORecord && sourceLeague !== 'KBO' && eval5) {
+            const signeeEval = evaluateForeignSignee(eval5, sourceLeague);
+            if (signeeEval) {
+              return { ...p, pitcherEval: { ...signeeEval, pitchQuality, pitchDiversity } };
+            }
+          }
+
           return { ...p, pitcherEval: eval5 ? { ...eval5, pitchQuality, pitchDiversity } : null };
         });
 
