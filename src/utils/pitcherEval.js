@@ -123,9 +123,9 @@ function starterGsBonus(gs) {
 }
 
 export const EVAL_CATEGORIES = [
-  { key: 'stuff',    label: 'Stuff',    labelKor: '구위',     metrics: STUFF_METRICS },
+  { key: 'stuff',    label: 'Stuff',    labelKor: '구위',     metrics: STUFF_METRICS, zMultiplier: 9 },
   { key: 'command',  label: 'Command',  labelKor: '제구',     metrics: COMMAND_METRICS, zMultiplier: 14 },
-  { key: 'control',  label: 'Control',  labelKor: '컨트롤',   metrics: CONTROL_METRICS },
+  { key: 'control',  label: 'Control',  labelKor: '컨트롤',   metrics: CONTROL_METRICS, zMultiplier: 9 },
   { key: 'holding',  label: 'Holding',  labelKor: '주자억제', metrics: HOLDING_METRICS, zMultiplier: 6 },
   { key: 'stamina',  label: 'Stamina',  labelKor: '체력',     metrics: null },
 ];
@@ -430,7 +430,7 @@ function calcBlendedCategoryScore(
  */
 function calcBlendedStaminaScore(playerYearData, maxYear, leagueZOffset = 0) {
   const latestStarter = isStarter(playerYearData[0]?.seasonStats);
-  const zMul = latestStarter ? 10 : 12;
+  const zMul = latestStarter ? 9 : 11;
   let totalWeight = 0;
   let weightedZSum = 0;
   let gsBonus = 0;
@@ -693,12 +693,22 @@ export function evaluateForeignSignee(baseEval, sourceLeague) {
     estimate[key] = baseEval[key];
   }
 
-  // ── 능력치 생성 (LEAGUE_BASE 랜덤 + 외국 스탯 앵커) ──
+  // ── 능력치 생성 (LEAGUE_BASE 랜덤 + 외국 스탯 앵커 + 엘리트 보너스) ──
+  // 엘리트 보너스: 연속 분포로 자연스러운 꼬리 (약 2.5%가 고능력)
+  const eliteRoll = Math.random();
+  const eliteTier = eliteRoll < 0.025 ? 3  // 2.5% — S급: +12~18
+    : eliteRoll < 0.10 ? 2                  // 7.5% — A급: +6~12
+    : eliteRoll < 0.25 ? 1                  // 15%  — B급: +2~6
+    : 0;                                     // 75%  — 일반
+  const eliteBonus = eliteTier === 3 ? rand(12, 18)
+    : eliteTier === 2 ? rand(6, 12)
+    : eliteTier === 1 ? rand(2, 6)
+    : 0;
+
   const ability = {};
   for (const key of ['stuff', 'command', 'control']) {
     const range = leagueRange[key];
     const randomVal = rand(range[0], range[1]);
-    const eliteBonus = Math.random() < 0.15 ? rand(4, 10) : 0;
     const anchor = estimate[key] != null ? estimate[key] : (range[0] + range[1]) / 2;
     ability[key] = clamp(anchor * anchorW + randomVal * (1 - anchorW) + eliteBonus);
   }
@@ -709,44 +719,57 @@ export function evaluateForeignSignee(baseEval, sourceLeague) {
   // ── 적응 유형 ──
   const adaptationType = pickWeighted(ADAPTATION_TYPES);
 
-  // ── KBO 적합도 ──
+  // ── 스카우팅 정확도 ──
+  // 신뢰도 높으면 노이즈 작음, 낮으면 노이즈 큼
+  const scoutAccuracy = clamp(rand(20, 95), 0, 100);
+  const noiseRange = (100 - scoutAccuracy) / 100 * 15; // 최대 ±15
+
+  // ── 스카우팅된 능력치 (노이즈 반영 — 영입 시 보이는 값) ──
+  const scouted = {};
+  for (const key of ['stuff', 'command', 'control', 'holding', 'stamina']) {
+    scouted[key] = clamp(ability[key] + rand(-noiseRange, noiseRange));
+  }
+
+  // ── KBO 적합도 (스카우팅된 능력치 기반 — 노이즈 포함) ──
   const kboFit = clamp(
-    (ability.stuff - 40) * 0.6 + (ability.control - 40) * 0.4
-    + (adaptationType.id === 'bust' ? -15 : adaptationType.id === 'early' ? 10 : 0)
-    + rand(-10, 10),
+    50
+    + (scouted.stuff - 50) * 0.6 + (scouted.control - 50) * 0.4
+    + rand(-5, 5),
     0, 100
   );
 
-  // ── 1년차 예상 (적응계수 반영) ──
+  // ── 적응 커브 적용 능력치 (시즌 중 실제 발휘 — trueAbility × 적응계수) ──
   const adaptFactor1 = adaptationType.curve[0];
-  const projected = {};
+  const adapted = {};
   for (const key of ['stuff', 'command', 'control', 'holding', 'stamina']) {
-    projected[key] = clamp(50 + (ability[key] - 50) * adaptFactor1);
+    adapted[key] = clamp(50 + (ability[key] - 50) * adaptFactor1);
   }
 
-  // ── 스카우팅 힌트 ──
+  // ── 스카우팅 힌트 (스카우팅된 능력치 기반 — 스카우트가 보는 것) ──
   const hints = generateHints(
-    ability.stuff, ability.command, ability.control,
+    scouted.stuff, scouted.command, scouted.control,
     adaptationType, kboFit, sourceLeague
   );
 
   return {
-    // pitcherEval 호환 — 생성된 능력치가 곧 실제 능력치
+    // pitcherEval 호환 — 스카우팅된 능력치 (영입 시 표시)
     isStarterRole: starter,
     sourceLeague,
-    stuff:   ability.stuff,
-    command: ability.command,
-    control: ability.control,
-    holding: ability.holding,
-    stamina: ability.stamina,
+    stuff:   scouted.stuff,
+    command: scouted.command,
+    control: scouted.control,
+    holding: scouted.holding,
+    stamina: scouted.stamina,
 
     // 용병 스카우팅 메타데이터
     isForeignSignee: true,
     scouting: {
       estimate,            // 외국 스탯 기반 참고 추정치
-      projected,           // 1년차 예상 (적응계수 반영)
+      trueAbility: ability, // 진짜 능력치 (히든 — 시즌 진행 시 드러남)
+      adapted,             // 시즌 중 실제 발휘 (trueAbility × 적응계수)
       adaptationType,
       kboFit,
+      scoutAccuracy,       // 스카우팅 신뢰도 (0~100%)
       hints,
     },
   };

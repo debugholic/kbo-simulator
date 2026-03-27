@@ -20,11 +20,11 @@ const HINT_COLORS = { positive: '#4CAF50', neutral: '#9E9E9E', negative: '#E5737
 
 // KBO 적합도 숫자 → 등급 + 설명 + 색상
 function kboFitGrade(fit) {
-  if (fit >= 80) return { grade: 'S', label: '최적합',   color: '#D4A017' };
+  if (fit >= 74) return { grade: 'S', label: '최적합',   color: '#D4A017' };
   if (fit >= 65) return { grade: 'A', label: '적합',     color: '#4CAF50' };
   if (fit >= 50) return { grade: 'B', label: '보통',     color: '#2196F3' };
   if (fit >= 35) return { grade: 'C', label: '불확실',   color: '#9E9E9E' };
-  if (fit >= 20) return { grade: 'D', label: '부적합',   color: '#CC6ED9' };
+  if (fit >= 25) return { grade: 'D', label: '부적합',   color: '#CC6ED9' };
   return           { grade: 'E', label: '고위험',   color: '#E53935' };
 }
 
@@ -175,6 +175,30 @@ export default function ScoutingDemo({ onClose }) {
             </div>
           </div>
 
+          {/* KBO 적합도 — 계약 전: 등급만 / 계약 후: 신뢰도 추가 */}
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>KBO 적합도</div>
+            {(() => {
+              const { grade, label, color } = kboFitGrade(visible.kboFit);
+              const acc = Math.round(visible.scoutAccuracy);
+              const accColor = acc >= 70 ? '#4CAF50' : acc >= 45 ? '#FF9800' : '#E57373';
+              return (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 24, fontWeight: 700, color }}>{grade}</span>
+                    <span style={{ fontSize: 13, color, fontWeight: 500 }}>({label})</span>
+                    {signed && (
+                      <span style={{ fontSize: 12, color: accColor, fontWeight: 600, marginLeft: 8 }}>
+                        신뢰도 {acc}%
+                      </span>
+                    )}
+                    <span style={{ fontSize: 11, color: '#999', marginLeft: 'auto' }}>스카우팅 기대 평가</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           {/* 스카우팅 힌트 */}
           <div className={styles.section}>
             <div className={styles.sectionTitle}>스카우트 의견</div>
@@ -217,15 +241,6 @@ export default function ScoutingDemo({ onClose }) {
                   <div className={styles.adaptLabel}>
                     <span>적응 유형</span>
                     <strong>{hidden.adaptationType.label}</strong>
-                    <span style={{ marginLeft: 12 }}>KBO 적합도</span>
-                    {(() => {
-                      const { grade, label, color } = kboFitGrade(hidden.kboFit);
-                      return (
-                        <strong style={{ color }}>
-                          {grade} <span style={{ fontWeight: 500, fontSize: 11 }}>({label})</span>
-                        </strong>
-                      );
-                    })()}
                   </div>
                 </div>
               )}

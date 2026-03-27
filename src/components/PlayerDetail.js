@@ -1,24 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   getOverall, getGrade, getPositionGroup, POSITION_KOR,
   getBarColor, getTeamDisplayColor,
   PITCH_TYPE_KOR, PITCH_TYPES, calcAge,
 } from '../utils';
 import { EVAL_CATEGORIES } from '../utils/pitcherEval';
+import { supabase } from '../lib/supabase';
 import styles from './PlayerDetail.module.css';
 
-const SUPABASE_URL = 'https://ruiismfjwipmluufmhoe.supabase.co';
-
-/* ── Player Photo (로드 실패 시 숨김) ── */
+/* ── Player Photo (private bucket — signed URL) ── */
 function PlayerPhoto({ imageUrl }) {
+  const [src, setSrc] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
-  if (!imageUrl || error) return null;
+  useEffect(() => {
+    if (!imageUrl) return;
+    // 경로에서 bucket과 파일 경로 추출: /storage/v1/object/public/player-images/2763.png
+    const match = imageUrl.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/);
+    if (!match) return;
+    const [, bucket, path] = match;
+    supabase.storage.from(bucket).createSignedUrl(path, 3600).then(({ data, error: err }) => {
+      if (!err && data?.signedUrl) setSrc(data.signedUrl);
+      else setError(true);
+    });
+  }, [imageUrl]);
+
+  if (!imageUrl || error || !src) return null;
 
   return (
     <img
-      src={`${SUPABASE_URL}${imageUrl}`}
+      src={src}
       alt=""
       className={styles.playerPhoto}
       style={{ opacity: loaded ? 1 : 0 }}
@@ -306,7 +318,7 @@ const WHIFF_BENCHMARKS = {
   other:   { mean: 22, std: 7 },
 };
 
-function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false, isForeignSignee = false, generatedStuff = null, cnt = null } = {}) {
+function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = false, isForeign = false, isForeignSignee = false, generatedStuff = null, cnt = null, pct = null } = {}) {
   // 소표본 회귀: 투구수 300개 미만이면 평균(0)으로 부분 회귀
   const CNT_THRESHOLD = 300;
   if (val100 != null && cnt != null) {
@@ -363,6 +375,16 @@ function normalizeVal100(val100, type, leagueStats, velo, whiff, { isRookie = fa
     score = 38 + (score - 50) * 0.5;
   }
 
+  // 구사율 페널티: 거의 안 던지는 구종은 등급 할인
+  if (pct != null) {
+    const p = Number(pct);
+    if      (p < 1) score *= 0.60;   // 1% 미만: -40%
+    else if (p < 2) score *= 0.70;   // 2% 미만: -30%
+    else if (p < 3) score *= 0.78;   // 3% 미만: -22%
+    else if (p < 4) score *= 0.85;   // 4% 미만: -15%
+    else if (p < 5) score *= 0.90;   // 5% 미만: -10%
+  }
+
   return Math.max(20, Math.min(80, Math.round(score)));
 }
 
@@ -388,7 +410,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
   const radarItems = pitchItems.map(item => ({
     label: item.label,
     value: normalizeVal100(item.val100Raw, item.type, leaguePitchStats, item.velo, item.whiff, {
-      isRookie, isForeign, isForeignSignee, generatedStuff, cnt: item.cnt,
+      isRookie, isForeign, isForeignSignee, generatedStuff, cnt: item.cnt, pct: item.pct,
     }),
   }));
 
@@ -514,11 +536,11 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
         {/* 1-1. 용병 스카우팅 (KBO 기록 없는 외국인) */}
         {isPitcher && pitcherEval?.isForeignSignee && pitcherEval.scouting && (() => {
           const sc = pitcherEval.scouting;
-          const fitGrade = sc.kboFit >= 80 ? { g: 'S', l: '최적합', c: '#D4A017' }
+          const fitGrade = sc.kboFit >= 74 ? { g: 'S', l: '최적합', c: '#D4A017' }
             : sc.kboFit >= 65 ? { g: 'A', l: '적합',   c: '#4CAF50' }
             : sc.kboFit >= 50 ? { g: 'B', l: '보통',   c: '#2196F3' }
             : sc.kboFit >= 35 ? { g: 'C', l: '불확실', c: '#9E9E9E' }
-            : sc.kboFit >= 20 ? { g: 'D', l: '부적합', c: '#CC6ED9' }
+            : sc.kboFit >= 25 ? { g: 'D', l: '부적합', c: '#CC6ED9' }
             :                   { g: 'E', l: '고위험', c: '#E53935' };
           const hintColors = { positive: '#4CAF50', neutral: '#9E9E9E', negative: '#E57373' };
           const hintIcons  = { positive: '\u2713', neutral: '\u00b7', negative: '!' };
@@ -529,7 +551,6 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
               <div className={styles.signeeHeader}>
                 <h2 className={styles.sectionTitle} style={{ marginBottom: 0 }}>용병 스카우팅</h2>
                 <span className={styles.signeeBadge}>{sourceLeague}</span>
-                <span className={styles.signeeAdapt}>{sc.adaptationType.label}</span>
               </div>
 
               <div className={styles.signeeGrid}>
@@ -540,17 +561,25 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
                   </span>
                 </div>
                 <div className={styles.signeeMetric}>
-                  <span className={styles.signeeMetricLabel}>1년차 적응계수</span>
-                  <span className={styles.signeeMetricValue}>
-                    {Math.round(sc.adaptationType.curve[0] * 100)}%
+                  <span className={styles.signeeMetricLabel}>적응 유형</span>
+                  <span className={styles.signeeMetricValue} style={{ color: sc.adaptationType?.id === 'bust' ? '#E53935' : sc.adaptationType?.id === 'slow' ? '#FF9800' : sc.adaptationType?.id === 'early' ? '#4CAF50' : '#2196F3' }}>
+                    {sc.adaptationType?.label || '-'}
                   </span>
+                </div>
+                <div className={styles.signeeMetric}>
+                  <span className={styles.signeeMetricLabel}>스카우팅 신뢰도</span>
+                  {(() => {
+                    const acc = Math.round(sc.scoutAccuracy || 50);
+                    const accColor = acc >= 70 ? '#4CAF50' : acc >= 45 ? '#FF9800' : '#E57373';
+                    return <span className={styles.signeeMetricValue} style={{ color: accColor }}>{acc}%</span>;
+                  })()}
                 </div>
               </div>
 
               <div className={styles.signeeCompare}>
                 {cats.map(key => {
                   const est = sc.estimate[key];
-                  const proj = sc.projected[key];
+                  const proj = (sc.adapted || sc.projected)?.[key];
                   if (est == null) return null;
                   return (
                     <div key={key} className={styles.signeeCompareRow}>

@@ -100,7 +100,7 @@ export function generateSeasonStats(abilities, position, adaptFactor, injuryFact
   }
 
   // ERA: 리그평균 4.50 중심
-  const eraBase = 4.50 - n(stuff) * 0.80 - n(command) * 0.70 - n(control) * 0.50;
+  const eraBase = 4.50 - n(stuff) * 1.20 - n(command) * 1.00 - n(control) * 0.80;
   const era = Math.max(0.80, eraBase + (Math.random() - 0.5) * 1.60);
 
   // K/9: 리그평균 7.50 중심 (stuff 주도)
