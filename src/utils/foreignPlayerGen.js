@@ -354,7 +354,7 @@ export function generateHints(stuff, command, control, adapt, kboFit, league) {
     { type: 'neutral', text: '리그 이동 경험이 제한적 — 적응 속도 예측 어려움' },
     { type: 'neutral', text: '해외 생활 적응과 팀 케미스트리는 현장 확인 사항' },
     { type: 'neutral', text: 'KBO 공인구 차이에 대한 적응이 변수' },
-    { type: 'neutral', text: '원정 이동 거리와 스케줄 적응은 실전에서 판단' },
+    { type: 'neutral', text: '장기 레이스에서의 체력 관리와 페이스 조절은 실전 확인 필요' },
     { type: 'neutral', text: '한국 음식·문화 적응이 컨디션에 영향을 줄 수 있음' },
     { type: 'neutral', text: '통역·코칭스태프와의 소통이 적응 속도를 좌우' },
     { type: 'neutral', text: 'KBO 특유의 응원 문화와 분위기가 변수로 작용 가능' },

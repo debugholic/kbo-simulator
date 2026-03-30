@@ -363,8 +363,11 @@ function blendOffset(metrics, seasonOffset, qualityOffset) {
 
 /* ── 메인 산출 함수 ── */
 
-// 소표본 보정 기준 (이닝)
-const REGRESSION_IP = 60;
+// 소표본 보정 기준 (이닝) — 이 이닝을 채워야 실제 스탯 100% 반영
+const REGRESSION_IP = 50;
+// 회귀 목표 점수 (20-80 스케일) — 소표본 선수는 이 점수로 수렴
+// 40 = 리그 평균(50) 기준 -1σ 방향
+const REGRESSION_Z = 1;
 
 /**
  * 다년도 가중 z-score 블렌딩 (시즌별 리그 보정)
@@ -405,7 +408,10 @@ function calcBlendedCategoryScore(
 
       if (raw == null || leagueMean == null || !stats) continue;
 
-      const adjusted = leagueMean + (raw - leagueMean) * regressionFactor;
+      // 소표본 회귀: 목표점을 리그 평균(→50)이 아닌 나쁜 방향(→30)으로 설정
+      // dir='higher': 리그 평균 -2σ (낮을수록 나쁨), dir='lower': +2σ (높을수록 나쁨)
+      const regressionTarget = leagueMean + (metric.dir === 'lower' ? 1 : -1) * REGRESSION_Z * stats.std;
+      const adjusted = regressionTarget + (raw - regressionTarget) * regressionFactor;
       let z = (adjusted - leagueMean) / stats.std;
       if (metric.dir === 'lower') z = -z;
       z = Math.max(-3.7, Math.min(3.7, z));
