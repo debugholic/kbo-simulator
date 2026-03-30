@@ -90,6 +90,7 @@ src/
 - ROOKIE_BASE: 1R=36, 2-3R=32, 4-5R=29, 6-10R=26
 - ROOKIE_SCALE = 0.3 (스카우팅 편차의 30%만 반영)
 - stuff = veloToStuff(구속) × 0.6 + avgBreaking × 0.4 → toKBO()
+- 상세 문서: [드래프티 신인 투수 평가 시스템](memory/rookie_eval_system.md)
 
 ---
 
