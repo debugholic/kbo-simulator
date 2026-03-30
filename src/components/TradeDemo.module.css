@@ -1,0 +1,319 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 860px;
+  max-width: 96vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 헤더 */
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.closeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.closeBtn:hover { background: var(--bg2); }
+
+/* 콘텐츠 */
+.content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* 사이드 패널 */
+.side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* 중앙 구분 */
+.center {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 60px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  gap: 12px;
+}
+.arrowWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.arrow {
+  font-size: 20px;
+  color: var(--text2);
+}
+.vsLabel {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text2);
+}
+.vsText { color: var(--text2); }
+
+/* 팀 패널 내부 */
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 16px 8px;
+  flex-shrink: 0;
+}
+.teamDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.teamName {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.searchWrap {
+  padding: 0 12px 8px;
+  flex-shrink: 0;
+}
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+.search:focus { border-color: var(--text2); }
+
+.playerList {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+}
+
+.playerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.playerRow:hover { background: var(--bg2); }
+.selectedRow { font-weight: 600; }
+
+.rowLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.rowName {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rowPos {
+  font-size: 11px;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+.rowOvr {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* 선수 카드 */
+.playerCard {
+  margin: 10px 12px;
+  padding: 12px;
+  background: var(--bg2);
+  border-radius: 10px;
+  border-top: 3px solid var(--border);
+  flex-shrink: 0;
+}
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.cardName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.cardSub {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+.ovrBadge {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.ovrGrade { font-size: 11px; }
+.ovrVal   { font-size: 14px; }
+
+/* 능력치 바 */
+.bars { display: flex; flex-direction: column; gap: 4px; }
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.barLabel {
+  font-size: 10px;
+  color: var(--text2);
+  width: 44px;
+  flex-shrink: 0;
+}
+.barTrack {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.barVal {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 특성 힌트 */
+.attrHints {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.attrStrength,
+.attrWeakness {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.attrStrength { color: #4CAF50; }
+.attrWeakness { color: #EF5350; }
+.attrIcon { flex-shrink: 0; font-size: 10px; margin-top: 1px; }
+
+/* 플레이스홀더 */
+.placeholder {
+  margin: 10px 12px;
+  padding: 20px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* 푸터 */
+.footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.proposeBtn {
+  padding: 9px 28px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  background: #888;
+  transition: opacity 0.15s;
+}
+.proposeBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.proposeBtn:not(:disabled):hover { opacity: 0.85; }

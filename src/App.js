@@ -6,6 +6,7 @@ import FilterBar from './components/FilterBar';
 import ScoutingDemo from './components/ScoutingDemo';
 import ConfidenceDemo from './components/ConfidenceDemo';
 import GrowthSimDemo from './components/GrowthSimDemo';
+import TradeDemo from './components/TradeDemo';
 import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor, calcAge } from './utils';
 import { useData } from './hooks/useData';
 import styles from './App.module.css';
@@ -23,6 +24,7 @@ export default function App() {
   const [showScouting, setShowScouting] = useState(false);
   const [showConfidence, setShowConfidence] = useState(false);
   const [showGrowthSim, setShowGrowthSim] = useState(false);
+  const [showTrade, setShowTrade] = useState(false);
 
   const handlePlayerType = useCallback((type) => {
     setPlayerType(type);
@@ -152,6 +154,12 @@ export default function App() {
             >
               📈 성장 시뮬레이션
             </button>
+            <button
+              onClick={() => setShowTrade(true)}
+              style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, background: '#00897B22', border: '1px solid #00897B44', color: '#00897B', cursor: 'pointer', fontWeight: 600 }}
+            >
+              🔄 트레이드
+            </button>
           </div>
         </div>
       </header>
@@ -159,6 +167,7 @@ export default function App() {
       {showScouting && <ScoutingDemo onClose={() => setShowScouting(false)} scoutingHints={scoutingHints} attrOpinions={attrOpinions} />}
       {showConfidence && <ConfidenceDemo onClose={() => setShowConfidence(false)} />}
       {showGrowthSim && <GrowthSimDemo onClose={() => setShowGrowthSim(false)} />}
+      {showTrade && <TradeDemo onClose={() => setShowTrade(false)} players={players} teams={teams} attrOpinions={attrOpinions} />}
 
       <main className={styles.main}>
         <TeamSelector
