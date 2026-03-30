@@ -145,6 +145,8 @@ export function useData() {
   const [teams, setTeams]   = useState([]);
   const [leaguePitchStats, setLeaguePitchStats] = useState({});
   const [pitcherEvalData, setPitcherEvalData] = useState({ stdDevs: {}, leagueAvgs: {} });
+  const [scoutingHints, setScoutingHints] = useState([]);
+  const [attrOpinions, setAttrOpinions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState(null);
 
@@ -156,7 +158,7 @@ export function useData() {
         const [
           teamsRes, playersRes, allPitchRes,
           leagueSeasonRes, leagueQualityRes, leagueRunningRes,
-          attrRes, rookieScoutingRes,
+          attrRes, rookieScoutingRes, scoutingHintsRes, attrOpinionsRes,
         ] = await Promise.all([
           supabase.from('teams').select('*'),
           supabase
@@ -219,6 +221,14 @@ export function useData() {
           supabase.from('player_attributes').select('*'),
           // 신인 투수 스카우팅
           supabase.from('rookie_pitcher_scouting').select('*'),
+          // 용병 스카우팅 힌트 템플릿
+          supabase.from('player_scouting_opinions')
+            .select('category, condition_key, hint_type, opinion')
+            .eq('context', 'foreign_signee')
+            .is('player_id', null),
+          // 선수 특성 구간별 의견
+          supabase.from('player_attribute_scouting_opinions')
+            .select('attribute, range_min, range_max, description'),
         ]);
 
         if (teamsRes.error) throw teamsRes.error;
@@ -393,6 +403,8 @@ export function useData() {
         setPlayers(playersWithEval);
         setLeaguePitchStats(leagueStats);
         setPitcherEvalData({ stdDevs, leagueAvgs });
+        setScoutingHints(scoutingHintsRes.data || []);
+        setAttrOpinions(attrOpinionsRes.data || []);
       } catch (err) {
         if (!cancelled) setError(err.message || '데이터 로딩 실패');
       } finally {
@@ -410,5 +422,5 @@ export function useData() {
     return m;
   }, [teams]);
 
-  return { players, teams, teamsMap, leaguePitchStats, loading, error };
+  return { players, teams, teamsMap, leaguePitchStats, scoutingHints, attrOpinions, loading, error };
 }

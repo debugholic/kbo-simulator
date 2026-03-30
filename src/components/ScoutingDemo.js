@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { generateForeignPitcher } from '../utils/foreignPlayerGen';
+import { generateForeignPitcher, buildHintPool } from '../utils/foreignPlayerGen';
 import { generateSeasonStats, formatIP } from '../utils/careerSimulator';
 import { generateAdaptationProfile, calcAdaptationFactor } from '../utils/playerGrowth';
 import styles from './ScoutingDemo.module.css';
@@ -54,12 +54,47 @@ function runSeasonSim(simPlayer, adaptationType, N = 9) {
   return results[Math.floor(N / 2)]; // 중앙값
 }
 
-export default function ScoutingDemo({ onClose }) {
-  const [data, setData] = useState(() => generateForeignPitcher('AAA', 'SP'));
+const ATTR_KOR = {
+  competitiveness: '승부욕',
+  resilience: '회복력',
+  focus: '집중력',
+  adaptability: '적응력',
+  work_ethic: '훈련태도',
+  durability: '내구성',
+  leadership: '리더십',
+};
+
+function pickAttrDesc(opinions, attribute, value) {
+  const matches = opinions.filter(
+    o => o.attribute === attribute && value >= o.range_min && value <= o.range_max
+  );
+  if (!matches.length) return null;
+  return matches[Math.floor(Math.random() * matches.length)].description;
+}
+
+function calcAttrStrengthsWeaknesses(attributes, opinions) {
+  let bestKey = null, bestVal = 55;
+  let worstKey = null, worstVal = 46;
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value > bestVal) { bestVal = value; bestKey = key; }
+    if (value < worstVal) { worstVal = value; worstKey = key; }
+  }
+  const strengths = bestKey ? [pickAttrDesc(opinions, bestKey, bestVal)].filter(Boolean) : [];
+  const weaknesses = worstKey ? [pickAttrDesc(opinions, worstKey, worstVal)].filter(Boolean) : [];
+  return { strengths, weaknesses };
+}
+
+export default function ScoutingDemo({ onClose, scoutingHints = [], attrOpinions = [] }) {
+  const hintPool = useMemo(() => buildHintPool(scoutingHints), [scoutingHints]);
+  const [data, setData] = useState(() => generateForeignPitcher('AAA', 'SP', hintPool));
   const [signed, setSigned] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
   const { visible, hidden, simPlayer } = data;
+  const { strengths, weaknesses } = useMemo(
+    () => calcAttrStrengthsWeaknesses(hidden.attributes, attrOpinions),
+    [hidden.attributes, attrOpinions]
+  );
 
   // 계약 후 리빌 시 시뮬레이션 (메모이즈)
   const simResult = useMemo(() => {
@@ -68,7 +103,7 @@ export default function ScoutingDemo({ onClose }) {
   }, [signed, simPlayer, hidden.adaptationType]);
 
   function reroll() {
-    setData(generateForeignPitcher('AAA', 'SP'));
+    setData(generateForeignPitcher('AAA', 'SP', hintPool));
     setSigned(false);
     setRevealed(false);
   }
@@ -213,6 +248,27 @@ export default function ScoutingDemo({ onClose }) {
               ))}
             </div>
           </div>
+
+          {/* 선수 특성 강점/단점 */}
+          {(strengths.length > 0 || weaknesses.length > 0) && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>선수 특성</div>
+              <div className={styles.hints}>
+                {strengths.map((text, i) => (
+                  <div key={`s${i}`} className={styles.hint} style={{ borderLeftColor: HINT_COLORS.positive }}>
+                    <span className={styles.hintIcon} style={{ color: HINT_COLORS.positive }}>{HINT_ICONS.positive}</span>
+                    <span className={styles.hintText}>{text}</span>
+                  </div>
+                ))}
+                {weaknesses.map((text, i) => (
+                  <div key={`w${i}`} className={styles.hint} style={{ borderLeftColor: HINT_COLORS.negative }}>
+                    <span className={styles.hintIcon} style={{ color: HINT_COLORS.negative }}>{HINT_ICONS.negative}</span>
+                    <span className={styles.hintText}>{text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 계약 후 능력치 공개 (데모용) */}
           {signed && (

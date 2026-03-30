@@ -11,7 +11,7 @@ import { useData } from './hooks/useData';
 import styles from './App.module.css';
 
 export default function App() {
-  const { players, teams, teamsMap, leaguePitchStats, loading, error } = useData();
+  const { players, teams, teamsMap, leaguePitchStats, scoutingHints, attrOpinions, loading, error } = useData();
 
   const [selectedTeam, setSelectedTeam] = useState('ALL');
   const [playerType, setPlayerType] = useState('pitcher');
@@ -156,7 +156,7 @@ export default function App() {
         </div>
       </header>
 
-      {showScouting && <ScoutingDemo onClose={() => setShowScouting(false)} />}
+      {showScouting && <ScoutingDemo onClose={() => setShowScouting(false)} scoutingHints={scoutingHints} attrOpinions={attrOpinions} />}
       {showConfidence && <ConfidenceDemo onClose={() => setShowConfidence(false)} />}
       {showGrowthSim && <GrowthSimDemo onClose={() => setShowGrowthSim(false)} />}
 

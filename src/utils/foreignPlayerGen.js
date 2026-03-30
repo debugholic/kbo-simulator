@@ -131,7 +131,7 @@ function generateAttributes(adaptationType, kboFit, league, trueStuff, trueComma
  * @param {string} sourceLeague - 'MLB' | 'AAA' | 'NPB'
  * @param {string} role - 'SP' | 'RP'
  */
-export function generateForeignPitcher(sourceLeague = 'AAA', role = 'SP') {
+export function generateForeignPitcher(sourceLeague = 'AAA', role = 'SP', hintPool = {}) {
   const base = LEAGUE_BASE[sourceLeague] || LEAGUE_BASE.AAA;
 
   // ── 숨겨진 진짜 능력치 (엘리트 연속 분포) ──
@@ -196,7 +196,7 @@ export function generateForeignPitcher(sourceLeague = 'AAA', role = 'SP') {
   const attributes = generateAttributes(adaptationType, kboFit, sourceLeague, trueStuff, trueCommand);
 
   // ── 스카우팅 힌트 생성 (스카우팅된 능력치 기반 — 스카우트가 보는 것) ──
-  const hints = generateHints(scoutedStuff, scoutedCommand, scoutedControl, adaptationType, kboFit, sourceLeague);
+  const hints = generateHints(scoutedStuff, scoutedCommand, scoutedControl, adaptationType, kboFit, sourceLeague, hintPool);
 
   // ── 시뮬레이션용 player 객체 (careerSimulator 호환) ──
   const simPlayer = {
@@ -252,198 +252,77 @@ export function pick(pool) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-export function generateHints(stuff, command, control, adapt, kboFit, league) {
+/**
+ * condition_key별로 힌트 풀을 그룹화
+ */
+export function buildHintPool(rows) {
+  const pool = {};
+  for (const row of rows) {
+    const key = row.condition_key;
+    if (!pool[key]) pool[key] = [];
+    pool[key].push({ type: row.hint_type, text: row.opinion });
+  }
+  return pool;
+}
+
+function pickFromPool(pool, conditionKey) {
+  const candidates = pool[conditionKey];
+  if (!candidates || candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+export function generateHints(stuff, command, control, adapt, kboFit, league, hintPool = {}) {
   const hints = [];
 
   // ── 구위 ──
-  if (stuff >= 70) {
-    hints.push({ type: 'positive', text: pick([
-      '탁월한 구위 — KBO 타자들이 적응하기 어려울 것',
-      '직구 위력이 리그 최상위권 수준, 즉전력 기대',
-      '파워 피처형 — 삼진 생산 능력 높음',
-      '구위만으로도 KBO 로테이션 상위권 가능',
-      '위압적인 패스트볼, 한국 타선 제압 가능',
-      '공의 무브먼트가 탁월 — 헛스윙 유도 능력 특급',
-      '직구·변화구 모두 위력적, 다각도 공격 가능',
-      '투구 무기가 다양하고 날카로움, KBO 최상위 전력',
-    ])});
-  } else if (stuff >= 62) {
-    hints.push({ type: 'positive', text: pick([
-      '직구와 변화구 조합이 좋아 삼진을 기대할 수 있음',
-      '결정구 위력이 좋아 이닝 마무리에 강점',
-      '구위가 준수하며 타자를 압도할 잠재력 보유',
-      '변화구 무브먼트가 인상적, KBO 타선에 유효할 것',
-      '파워와 기술이 균형 잡힌 타입 — 안정적 삼진 확보',
-      'KBO 수준에서 충분히 통할 구종 레퍼토리 보유',
-    ])});
-  } else if (stuff >= 55) {
-    hints.push({ type: 'neutral', text: pick([
-      '리그 평균 이상의 구위, 변화구 조합이 관건',
-      '직구가 준수한 수준 — 제구와의 조합이 승부처',
-      '구위는 합격선, 적응만 된다면 안정적 등판 가능',
-      '평균 이상 구위, 다른 요소에서 차별화 필요',
-      '직구 구속은 보통 — 무브먼트와 로케이션이 관건',
-      '결정구의 날카로움이 일정하지 않아 변동성 존재',
-      '구위 자체는 무난, 볼배합 운용에 따라 성적 갈림',
-      '평범한 직구를 변화구로 커버하는 타입',
-    ])});
-  } else {
-    hints.push({ type: 'negative', text: pick([
-      '구위 의존도 낮음 — 제구와 변화구 조합이 핵심',
-      '파워 부족, 타자를 압도할 수 있는 무기 부재',
-      'KBO 상위 타자들에게 직구 노출 위험 있음',
-      '구위 열세 — 볼배합과 위치 선구가 생명선',
-      '직구가 평범하여 카운트 불리 시 위험도 상승',
-      '변화구 의존도가 높아 패턴 노출 시 취약',
-      '공의 위력이 부족해 장타 허용 가능성 높음',
-      'KBO 중상위 타선 상대로는 고전이 예상됨',
-    ])});
-  }
+  const stuffKey = stuff >= 70 ? 'stuff_elite' : stuff >= 62 ? 'stuff_high' : stuff >= 55 ? 'stuff_mid' : 'stuff_low';
+  const stuffHint = pickFromPool(hintPool, stuffKey);
+  if (stuffHint) hints.push(stuffHint);
 
   // ── 제구/커맨드 ──
   if (command >= 65) {
-    hints.push({ type: 'positive', text: pick([
-      '투구 위치 정밀도 높음 — 코너워크 일품',
-      '원하는 곳에 꽂는 능력 탁월, 피안타 관리 기대',
-      '존 엣지 공략 능력 우수 — 카운트 주도 용이',
-      '가운데 몰림 없는 정교한 코스 공략형',
-    ])});
+    const h = pickFromPool(hintPool, 'command_high');
+    if (h) hints.push(h);
   } else if (command < 48) {
-    hints.push({ type: 'negative', text: pick([
-      '투구가 가운데로 몰리는 경향 — 장타 위험',
-      '의도한 위치에 공이 안 꽂히는 제구 불안',
-      '존 중앙 투구 비율 높아 장타율 피해 우려',
-      '코너워크 부재로 타자에게 유리한 카운트 허용',
-    ])});
+    const h = pickFromPool(hintPool, 'command_low');
+    if (h) hints.push(h);
   }
 
   // ── 컨트롤 ──
-  if (control >= 62) {
-    hints.push({ type: 'positive', text: pick([
-      '볼넷 억제력 우수, 이닝 소화 안정적',
-      '스트라이크 비율이 높아 불필요한 위기 최소화',
-      '타자와의 카운트 싸움에서 주도권 유리',
-      '볼넷 걱정 없는 안정적 스트라이크 제어',
-      '투구 효율이 좋아 이닝 깊숙이 소화 가능',
-      '카운트 관리 능력이 좋아 경기 템포 유지에 유리',
-    ])});
-  } else if (control >= 52) {
-    hints.push({ type: 'neutral', text: pick([
-      '컨트롤은 평균적 수준, 볼넷 관리가 관건',
-      '스트라이크 비율 보통 — 투구 수 관리 필요',
-      '카운트 싸움에서 간헐적으로 불리한 장면 발생',
-      '볼넷은 적정 수준이나 위기 상황에서 흔들릴 수 있음',
-    ])});
-  } else {
-    hints.push({ type: 'negative', text: pick([
-      'BB/9 높음 — 제구 불안이 최대 리스크',
-      '볼넷이 잦아 이닝 소화에 부담, 선발 한계 우려',
-      '출루 허용이 많아 실점 위험 상시 존재',
-      '스트라이크존 공략 능력 부족 — 카운트 불리 잦음',
-      '볼넷으로 자멸하는 패턴이 반복될 우려',
-      '투구 수 낭비가 심해 5이닝 이상 버티기 어려울 수 있음',
-      '주자 쌓인 상황에서 볼넷으로 추가 실점 위험',
-    ])});
-  }
+  const controlKey = control >= 62 ? 'control_high' : control >= 52 ? 'control_mid' : 'control_low';
+  const controlHint = pickFromPool(hintPool, controlKey);
+  if (controlHint) hints.push(controlHint);
 
-  // ── 적응 관련 (모호한 힌트 — 적응 유형을 직접 노출하지 않음) ──
-  const adaptHints = [
-    { type: 'neutral', text: '스카우팅 데이터 한계로 실전 검증 전까지 불확실' },
-    { type: 'neutral', text: '새로운 리그 적응 여부는 실전에서 확인 필요' },
-    { type: 'neutral', text: '환경 변화에 대한 적응력은 미지수' },
-    { type: 'neutral', text: '리그 이동 경험이 제한적 — 적응 속도 예측 어려움' },
-    { type: 'neutral', text: '해외 생활 적응과 팀 케미스트리는 현장 확인 사항' },
-    { type: 'neutral', text: 'KBO 공인구 차이에 대한 적응이 변수' },
-    { type: 'neutral', text: '장기 레이스에서의 체력 관리와 페이스 조절은 실전 확인 필요' },
-    { type: 'neutral', text: '한국 음식·문화 적응이 컨디션에 영향을 줄 수 있음' },
-    { type: 'neutral', text: '통역·코칭스태프와의 소통이 적응 속도를 좌우' },
-    { type: 'neutral', text: 'KBO 특유의 응원 문화와 분위기가 변수로 작용 가능' },
-  ];
-  hints.push(pick(adaptHints));
+  // ── 적응 ──
+  const adaptHint = pickFromPool(hintPool, 'adaptation_general');
+  if (adaptHint) hints.push(adaptHint);
 
   // ── 출신 리그 ──
-  if (league === 'MLB') {
-    hints.push({ type: 'positive', text: pick([
-      'MLB 경험 보유 — KBO 수준 차이 기대',
-      '메이저리그 마운드 경험, 압박 상황 대처 능력 검증',
-      'MLB 출신 특유의 파워와 무브먼트 기대',
-      '빅리그 커리어 보유 — 기술적 완성도 높음',
-      'MLB 경쟁에서 살아남은 검증된 실력',
-      '빅리그 수준의 훈련 체계를 거친 선수',
-    ])});
-  } else if (league === 'NPB') {
-    hints.push({ type: 'neutral', text: pick([
-      'NPB 출신 — KBO와 유사한 야구 문화로 적응 수월',
-      '일본 리그 경험 — 세밀한 피칭 스타일 기대',
-      'NPB 스타일의 제구 중심 투구, KBO 적응 무난 예상',
-      '타자 공략 패턴이 KBO와 어느 정도 겹쳐 초반 유리',
-      '아시아 리그 경험으로 문화적 적응 장벽 낮음',
-      'NPB 공인구와 KBO 공인구 차이가 관건',
-    ])});
-  } else {
-    hints.push({ type: 'neutral', text: pick([
-      'AAA 출신 — MLB 승격 경쟁에서 단련된 경험',
-      '마이너리그 상위 레벨 경험, 기본기 검증됨',
-      'AAA에서의 성적이 KBO로 직결되진 않으나 기대할 만함',
-      '마이너리그 최상위급 — 잠재력은 충분',
-      'MLB 콜업 경험 유무에 따라 기대치 조정 필요',
-      'AAA 수준의 경쟁에서 검증된 내구성 보유',
-    ])});
+  const leagueKey = league === 'MLB' ? 'league_mlb' : league === 'NPB' ? 'league_npb' : 'league_aaa';
+  const leagueHint = pickFromPool(hintPool, leagueKey);
+  if (leagueHint) hints.push(leagueHint);
+
+  // ── 투구 스타일 ──
+  let styleKey = null;
+  if (stuff >= 65 && control >= 60) styleKey = 'style_power_control';
+  else if (stuff >= 60 && command < 50) styleKey = 'style_power_wild';
+  else if (stuff < 55 && control >= 60) styleKey = 'style_finesse';
+  else if (stuff < 50 && control < 50) styleKey = 'style_weak';
+  if (styleKey) {
+    const h = pickFromPool(hintPool, styleKey);
+    if (h) hints.push(h);
   }
 
-  // ── 투구 스타일 (추가 다양성) ──
-  const styleHints = [];
-  if (stuff >= 65 && control >= 60) {
-    styleHints.push(
-      { type: 'positive', text: '파워와 제구를 겸비한 완성형 — 에이스급 자질' },
-      { type: 'positive', text: '구위와 컨트롤 모두 우수, 로테이션 중심 역할 가능' },
-    );
-  }
-  if (stuff >= 60 && command < 50) {
-    styleHints.push(
-      { type: 'neutral', text: '파워는 있으나 제구가 불안 — 양날의 검' },
-      { type: 'neutral', text: '강속구에 의존하는 스타일, 볼배합 개선 시 급성장 가능' },
-    );
-  }
-  if (stuff < 55 && control >= 60) {
-    styleHints.push(
-      { type: 'neutral', text: '구위보다 컨트롤로 승부하는 기교파 타입' },
-      { type: 'neutral', text: '삼진보다 타구 관리로 이닝을 먹는 스타일' },
-    );
-  }
-  if (stuff < 50 && control < 50) {
-    styleHints.push(
-      { type: 'negative', text: '구위와 제구 모두 평범 — 차별화 포인트 부재' },
-      { type: 'negative', text: '뚜렷한 강점이 보이지 않아 리스크가 큰 선택' },
-    );
-  }
-  if (styleHints.length > 0) {
-    hints.push(pick(styleHints));
-  }
-
-  // ── KBO 적합도 연계 ──
+  // ── KBO 적합도 ──
   if (kboFit >= 70) {
-    hints.push({ type: 'positive', text: pick([
-      'KBO 리그 스타일과의 궁합 양호',
-      'KBO 타자 스타일에 유리한 구종 조합 보유',
-      '스카우팅 분석상 KBO 환경 최적화 가능성 높음',
-      '리그 궁합 우수 — 즉시 전력감으로 평가됨',
-      '한국 야구 환경에 잘 맞는 투구 패턴',
-      'KBO 타선 약점을 공략할 수 있는 구종 보유',
-    ])});
+    const h = pickFromPool(hintPool, 'kbo_fit_high');
+    if (h) hints.push(h);
   } else if (kboFit < 40) {
-    hints.push({ type: 'negative', text: pick([
-      'KBO 타자 상대 유효 무기가 불분명',
-      '리그 궁합 불투명 — 뚜껑 열어봐야 알 수 있는 케이스',
-      'KBO 스타일에 맞지 않는 투구 패턴, 조정 필요',
-      '타자 우위의 KBO 환경에서 고전할 수 있음',
-      'KBO 공인구와의 궁합이 미지수',
-      '한국 타자들의 선구안에 고전할 가능성',
-    ])});
+    const h = pickFromPool(hintPool, 'kbo_fit_low');
+    if (h) hints.push(h);
   }
 
-  // 최대 3개만 선택 (다양한 카테고리에서 골고루)
-  // 셔플 후 3개 pick — 매번 다른 조합
+  // 셔플 후 3개 반환
   for (let i = hints.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [hints[i], hints[j]] = [hints[j], hints[i]];
