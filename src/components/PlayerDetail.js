@@ -16,10 +16,16 @@ function PlayerPhoto({ imageUrl }) {
 
   useEffect(() => {
     if (!imageUrl) return;
-    // 경로에서 bucket과 파일 경로 추출: /storage/v1/object/public/player-images/2763.png
-    const match = imageUrl.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/);
-    if (!match) return;
-    const [, bucket, path] = match;
+    // 파일명만 있는 경우(62.png) 또는 전체 경로(/storage/v1/...) 모두 처리
+    let bucket = 'player-images';
+    let path;
+    const fullMatch = imageUrl.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/);
+    if (fullMatch) {
+      bucket = fullMatch[1];
+      path = fullMatch[2];
+    } else {
+      path = imageUrl;
+    }
     supabase.storage.from(bucket).createSignedUrl(path, 3600).then(({ data, error: err }) => {
       if (!err && data?.signedUrl) setSrc(data.signedUrl);
       else setError(true);
@@ -41,6 +47,7 @@ function PlayerPhoto({ imageUrl }) {
 }
 
 /* ── SVG Radar Chart (다각형 능력치 차트) ── */
+
 function RadarChart({ items, teamColor, minVal = 0, maxVal = 100 }) {
   const size = 280;
   const cx = size / 2;
@@ -659,7 +666,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
             <h2 className={styles.sectionTitle}>구종</h2>
             <div className={styles.pitchLayout}>
               <div className={styles.pitchLeft}>
-                <RadarChart items={radarItems} teamColor="#E05050" minVal={20} maxVal={80} />
+                <RadarChart items={radarItems} teamColor={displayColor} minVal={20} maxVal={80} />
               </div>
               <div className={styles.pitchRight}>
                 <div className={styles.pitchGrid}>

@@ -327,9 +327,14 @@ export function useData() {
 
         // 각 투수에 대해 5대 능력치 산출
         const playersWithEval = flatPlayers.map(p => {
-          // 스카우팅 기반 신인 평가 (시즌 스탯 없는 투수)
+          // 총 KBO IP 계산 — KBO 기록이 없으면 외국인 선수이므로 tooFewIP 제외
+          const kboStats = (p.allSeasonStats || []).filter(s => (s.source_league || 'KBO') === 'KBO');
+          const totalKBOIP = kboStats.reduce((sum, s) => sum + (parseFloat(s.ip) || 0), 0);
+          const tooFewIP = kboStats.length > 0 && totalKBOIP < 20;
+
+          // 스카우팅 기반 신인 평가 (시즌 스탯 없거나 총 KBO IP < 20인 투수)
           const rookieScout = rookieScoutMap[p.id];
-          if (!p.seasonStats && rookieScout) {
+          if ((!p.seasonStats || tooFewIP) && rookieScout) {
             const pitchGrades = {};
             if (rookieScout.grade_4seam != null) pitchGrades['4seam'] = rookieScout.grade_4seam;
             if (rookieScout.grade_2seam != null) pitchGrades['2seam'] = rookieScout.grade_2seam;
@@ -352,7 +357,7 @@ export function useData() {
               }),
             };
           }
-          if (!p.seasonStats) return p;
+          if (!p.seasonStats || tooFewIP) return p;
           const sourceLeague = p.seasonStats.source_league || 'KBO';
 
           // KBO 기록 유무 판별: 전체 시즌 중 KBO 기록이 하나라도 있는지
