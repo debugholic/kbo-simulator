@@ -112,7 +112,7 @@ export const PITCH_TYPES = ['4seam', '2seam', 'cutter', 'curve', 'slider', 'chan
 // 투수 평가 능력치 컬럼 (테이블용)
 export const PITCHER_EVAL_COLS = [
   { key: 'stuff',   label: '구위' },
-  { key: 'command', label: '제구' },
+  { key: 'command', label: '커맨드' },
   { key: 'control', label: '컨트롤' },
   { key: 'holding', label: '주자억제' },
   { key: 'stamina', label: '체력' },

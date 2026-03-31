@@ -1,0 +1,81 @@
+/* 카드 */
+.card {
+  padding: 14px 16px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.cardName { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.nameExtra { display: inline-flex; align-items: center; }
+.cardSub  { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.typeBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  display: block;
+  text-align: center;
+}
+.ipInfo { font-size: 10px; color: var(--text2); margin-top: 4px; text-align: right; }
+
+/* 신뢰도 바 */
+.confRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.confTrack {
+  flex: 1;
+  height: 4px;
+  background: var(--bg2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.confFill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.confLabel { font-size: 10px; font-weight: 700; white-space: nowrap; transition: color 0.3s; }
+
+/* 능력치 rows */
+.stats { display: flex; flex-direction: column; gap: 7px; }
+.statRow { display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: 8px; }
+.statLabel { font-size: 11px; color: var(--text2); text-align: right; }
+
+/* 범위 바 */
+.barOuter { display: flex; align-items: center; gap: 8px; }
+.barTrack {
+  flex: 1;
+  height: 8px;
+  background: var(--bg2);
+  border-radius: 4px;
+  position: relative;
+  overflow: visible;
+}
+.rangeZone {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-radius: 4px;
+  transition: left 0.3s ease, width 0.3s ease;
+}
+.centerBar {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.trueMarker {
+  position: absolute;
+  top: -3px; bottom: -3px;
+  width: 2px;
+  background: #fff;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  transition: left 0.3s ease;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+}
+.barNum { font-size: 12px; font-weight: 600; color: var(--text); min-width: 34px; text-align: right; }
+.rangeNum { font-size: 11px; color: var(--text2); }
+.tilde { margin: 0 1px; }

@@ -89,6 +89,7 @@ export default function ScoutingDemo({ onClose, scoutingHints = [], attrOpinions
   const [data, setData] = useState(() => generateForeignPitcher('AAA', 'SP', hintPool));
   const [signed, setSigned] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [scouted, setScouted] = useState(false);
 
   const { visible, hidden, simPlayer } = data;
   const { strengths, weaknesses } = useMemo(
@@ -106,6 +107,7 @@ export default function ScoutingDemo({ onClose, scoutingHints = [], attrOpinions
     setData(generateForeignPitcher('AAA', 'SP', hintPool));
     setSigned(false);
     setRevealed(false);
+    setScouted(false);
   }
 
   const eraWidth = Math.max(0, Math.min(100,
@@ -249,8 +251,45 @@ export default function ScoutingDemo({ onClose, scoutingHints = [], attrOpinions
             </div>
           </div>
 
-          {/* 선수 특성 강점/단점 */}
-          {(strengths.length > 0 || weaknesses.length > 0) && (
+          {/* 스카우트 보고서 요청 후 공개 */}
+          {scouted && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>
+                상세 스카우트 보고서
+                <span className={styles.scoutedBadge}>✓ 보고서 수령</span>
+              </div>
+              {/* 좁혀진 ERA 범위 */}
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>정밀 ERA 추정</span>
+                <span className={styles.detailVal}>
+                  {((visible.projectedERA.low + visible.projectedERA.high) / 2 - 0.3).toFixed(2)}
+                  {' ~ '}
+                  {((visible.projectedERA.low + visible.projectedERA.high) / 2 + 0.3).toFixed(2)}
+                </span>
+              </div>
+              {/* 능력치 범위 힌트 */}
+              <div className={styles.abilityHints}>
+                {[
+                  { label: '구위',     val: hidden.trueStuff },
+                  { label: '커맨드',   val: hidden.trueCommand },
+                  { label: '컨트롤',   val: hidden.trueControl },
+                  { label: '체력',     val: hidden.trueStamina },
+                ].map(({ label, val }) => {
+                  const tier = val >= 60 ? { arrow: '↑', color: '#4CAF50' }
+                             : val >= 45 ? { arrow: '',  color: '#FF9800' }
+                             :             { arrow: '↓', color: '#E57373' };
+                  return (
+                    <span key={label} className={styles.abilityChip} style={{ color: tier.color, background: tier.color + '18' }}>
+                      {label}{tier.arrow && ` ${tier.arrow}`}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 선수 특성 강점/단점 — 스카우트 보고서 수령 후 공개 */}
+          {scouted && (strengths.length > 0 || weaknesses.length > 0) && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>선수 특성</div>
               <div className={styles.hints}>
@@ -283,7 +322,7 @@ export default function ScoutingDemo({ onClose, scoutingHints = [], attrOpinions
                 <div className={styles.revealed}>
                   {[
                     { label: '구위',    val: hidden.trueStuff,    color: '#4CAF50' },
-                    { label: '제구',    val: hidden.trueCommand,  color: '#2196F3' },
+                    { label: '커맨드',  val: hidden.trueCommand,  color: '#2196F3' },
                     { label: '컨트롤',  val: hidden.trueControl,  color: '#26A69A' },
                     { label: '주자억제', val: hidden.trueHolding,  color: '#9C27B0' },
                     { label: '체력',    val: hidden.trueStamina,  color: '#FF9800' },
@@ -338,6 +377,11 @@ export default function ScoutingDemo({ onClose, scoutingHints = [], attrOpinions
         {/* 액션 버튼 */}
         <div className={styles.actions}>
           <button className={styles.rerollBtn} onClick={reroll}>다른 선수 보기</button>
+          {!scouted && !signed && (
+            <button className={styles.scoutBtn} onClick={() => setScouted(true)}>
+              스카우트 보고서 요청
+            </button>
+          )}
           {!signed ? (
             <button className={styles.signBtn} onClick={() => setSigned(true)}>
               계약 체결

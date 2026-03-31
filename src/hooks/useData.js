@@ -300,6 +300,8 @@ export function useData() {
             weight:       p.weight,
             image_url:    p.image_url,
             status:       p.status,
+            defaultPotential: attr.potential ?? null,
+            fame:             attr.fame ?? null,
             attributes:   {
               competitiveness: attr.competitiveness ?? null,
               resilience:      attr.resilience ?? null,

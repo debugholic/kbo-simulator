@@ -124,7 +124,7 @@ function starterGsBonus(gs) {
 
 export const EVAL_CATEGORIES = [
   { key: 'stuff',    label: 'Stuff',    labelKor: '구위',     metrics: STUFF_METRICS, zMultiplier: 9 },
-  { key: 'command',  label: 'Command',  labelKor: '제구',     metrics: COMMAND_METRICS, zMultiplier: 14 },
+  { key: 'command',  label: 'Command',  labelKor: '커맨드',   metrics: COMMAND_METRICS, zMultiplier: 14 },
   { key: 'control',  label: 'Control',  labelKor: '컨트롤',   metrics: CONTROL_METRICS, zMultiplier: 9 },
   { key: 'holding',  label: 'Holding',  labelKor: '주자억제', metrics: HOLDING_METRICS, zMultiplier: 6 },
   { key: 'stamina',  label: 'Stamina',  labelKor: '체력',     metrics: null },

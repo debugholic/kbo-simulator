@@ -552,7 +552,7 @@ export default function PlayerDetail({ player, team, leaguePitchStats, onBack })
           const hintColors = { positive: '#4CAF50', neutral: '#9E9E9E', negative: '#E57373' };
           const hintIcons  = { positive: '\u2713', neutral: '\u00b7', negative: '!' };
           const cats = ['stuff', 'command', 'control', 'holding', 'stamina'];
-          const catKor = { stuff: '구위', command: '제구', control: '컨트롤', holding: '억제', stamina: '체력' };
+          const catKor = { stuff: '구위', command: '커맨드', control: '컨트롤', holding: '억제', stamina: '체력' };
           return (
             <div className={styles.section}>
               <div className={styles.signeeHeader}>

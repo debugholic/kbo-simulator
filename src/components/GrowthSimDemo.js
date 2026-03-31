@@ -61,7 +61,7 @@ const PLAYERS = [
 
 const STAT_DEFS = [
   { key: 'stuff',   label: '구위',    color: '#4CAF50' },
-  { key: 'command', label: '제구',    color: '#2196F3' },
+  { key: 'command', label: '커맨드',  color: '#2196F3' },
   { key: 'control', label: '컨트롤',  color: '#26A69A' },
   { key: 'holding', label: '주자억제', color: '#9C27B0' },
   { key: 'stamina', label: '체력',    color: '#FF9800' },

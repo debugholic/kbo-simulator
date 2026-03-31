@@ -12,7 +12,7 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 16px;
-  width: 860px;
+  width: 1080px;
   max-width: 96vw;
   max-height: 90vh;
   display: flex;
@@ -45,15 +45,54 @@
 }
 .closeBtn:hover { background: var(--bg2); }
 
+/* 시즌 진행도 바 */
+.seasonBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg2);
+}
+.seasonLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.seasonTrack {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.seasonFill {
+  height: 100%;
+  background: #2196F3;
+  border-radius: 2px;
+  transition: width 0.4s;
+}
+.seasonPct {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2196F3;
+  white-space: nowrap;
+  min-width: 28px;
+  text-align: right;
+}
+
 /* 콘텐츠 */
 .content {
   display: flex;
   flex: 1;
   overflow: hidden;
   gap: 0;
+  min-height: 0;
 }
 
-/* 사이드 패널 */
+/* 사이드 — 상단 리스트 + 하단 카드 분리 */
 .side {
   flex: 1;
   display: flex;
@@ -64,44 +103,50 @@
 
 /* 중앙 구분 */
 .center {
-  width: 56px;
+  width: 68px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: 60px;
+  padding-top: 50px;
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
-  gap: 12px;
+  gap: 6px;
 }
 .arrowWrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  width: 100%;
+}
+.vsTeamCount {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px 6px;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  line-height: 1.3;
 }
 .arrow {
-  font-size: 20px;
+  font-size: 18px;
   color: var(--text2);
+  line-height: 1;
+  padding: 4px 0;
 }
-.vsLabel {
-  writing-mode: vertical-rl;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.4;
-  text-align: center;
-  color: var(--text2);
-}
-.vsText { color: var(--text2); }
 
-/* 팀 패널 내부 */
+/* 팀 패널 (선수 목록) */
 .panel {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  max-height: 52%;
+  min-height: 130px;
+  border-bottom: 1px solid var(--border);
 }
 .panelHeader {
   display: flex;
@@ -119,6 +164,13 @@
 .teamName {
   font-size: 12px;
   font-weight: 700;
+}
+.selectedCount {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: auto;
 }
 
 .searchWrap {
@@ -142,14 +194,13 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  border-top: 1px solid var(--border);
 }
 
 .playerRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 14px;
+  padding: 6px 14px;
   border-left: 3px solid transparent;
   cursor: pointer;
   transition: background 0.1s;
@@ -182,6 +233,25 @@
   flex-shrink: 0;
 }
 
+/* 체크박스 */
+.checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1.5px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: white;
+  font-weight: 700;
+  transition: all 0.1s;
+}
+.checkboxChecked {
+  color: white;
+}
+
 .empty {
   padding: 20px;
   text-align: center;
@@ -189,23 +259,41 @@
   color: var(--text2);
 }
 
+/* 선택된 선수 카드 목록 */
+.cardList {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 0;
+}
+
 /* 선수 카드 */
 .playerCard {
-  margin: 10px 12px;
-  padding: 12px;
+  margin: 8px 12px;
+  padding: 10px 12px;
   background: var(--bg2);
   border-radius: 10px;
   border-top: 3px solid var(--border);
-  flex-shrink: 0;
 }
+
+/* 스카우팅 카드 — 약간 다른 배경 */
+.scoutCard {
+  background: color-mix(in srgb, var(--bg2) 90%, transparent);
+}
+
 .cardHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.cardInfo {
+  min-width: 0;
+  flex: 1;
 }
 .cardName {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
 }
@@ -214,20 +302,42 @@
   color: var(--text2);
   margin-top: 2px;
 }
+.cardHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .ovrBadge {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px 8px;
+  padding: 3px 7px;
   border-radius: 8px;
   font-weight: 700;
-  font-size: 13px;
-  flex-shrink: 0;
+  font-size: 12px;
 }
-.ovrGrade { font-size: 11px; }
-.ovrVal   { font-size: 14px; }
+.ovrGrade { font-size: 10px; }
+.ovrVal   { font-size: 13px; }
 
-/* 능력치 바 */
+/* 카드 내 삭제 버튼 */
+.removeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0.6;
+}
+.removeBtn:hover {
+  background: var(--border);
+  opacity: 1;
+}
+
+/* 능력치 바 (내 선수) */
 .bars { display: flex; flex-direction: column; gap: 4px; }
 .barRow {
   display: flex;
@@ -261,6 +371,34 @@
   flex-shrink: 0;
 }
 
+/* 스카우팅 배지 */
+.scoutBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: #9C27B022;
+  color: #9C27B0;
+}
+
+/* 스카우팅 요청 버튼 */
+.scoutRequestBtn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 0;
+  border: 1px dashed #9C27B066;
+  border-radius: 8px;
+  background: #9C27B011;
+  color: #9C27B0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.scoutRequestBtn:hover {
+  background: #9C27B022;
+}
+
 /* 특성 힌트 */
 .attrHints {
   display: flex;
@@ -282,10 +420,26 @@
 .attrWeakness { color: #EF5350; }
 .attrIcon { flex-shrink: 0; font-size: 10px; margin-top: 1px; }
 
+/* 루키 경고 뱃지 */
+.rookieBadge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #FF9800;
+  background: #FF980018;
+  border: 1px solid #FF980044;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+/* 포텐셜 별점 */
+.stars { display: inline-flex; gap: 0.5px; font-size: 12px; line-height: 1; }
+.starFull  { color: #E8B820; font-size: 12px; }
+.starFaded { color: #E8B82044; font-size: 12px; }
+
 /* 플레이스홀더 */
 .placeholder {
   margin: 10px 12px;
-  padding: 20px;
+  padding: 16px;
   border: 1px dashed var(--border);
   border-radius: 10px;
   text-align: center;
