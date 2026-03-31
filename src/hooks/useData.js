@@ -361,6 +361,7 @@ export function useData() {
                 controlGrade: rookieScout.control_grade ?? 50,
                 draftRound: rookieScout.draft_round ?? 10,
                 age: rookieScout.age ?? 18,
+                education: rookieScout.education ?? '고졸',
               }),
             };
           }

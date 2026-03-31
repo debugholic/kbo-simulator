@@ -608,23 +608,35 @@ function veloToStuff(maxVelo, avgVelo) {
  * 스카우팅 보고서 기반 신인 투수 평가
  * @param {Object} scouting - 스카우팅 데이터
  *   { maxVelo, avgVelo, pitchGrades: { slider, curve, changeup, ... },
- *     commandGrade, controlGrade, draftRound, draftPick, age }
+ *     commandGrade, controlGrade, draftRound, draftPick, age, education }
+ *
+ * education별 특성:
+ *   고졸      - SCALE 0.30, BASE +0 → 잠재력 중심, 즉전성 낮음
+ *   독립리그   - SCALE 0.37, BASE +1 → 실전 경험 있으나 수준 낮음
+ *   대졸      - SCALE 0.45, BASE +2 → 즉전감, 스카우팅 신뢰도 높음
  */
 export function evaluateRookie(scouting) {
   const {
     maxVelo = 140, avgVelo, pitchGrades = {},
     commandGrade = 50, controlGrade = 50,
     draftRound = 10, age = 18,
+    education = '고졸',
   } = scouting;
 
+  // education별 스케일/베이스 보정
+  const EDU_CONFIG = {
+    '고졸':    { scale: 0.30, baseBonus: 0 },
+    '독립리그': { scale: 0.37, baseBonus: 1 },
+    '대졸':    { scale: 0.45, baseBonus: 2 },
+  };
+  const { scale: ROOKIE_SCALE, baseBonus } = EDU_CONFIG[education] ?? EDU_CONFIG['고졸'];
+
   // 스카우팅 등급(잠재력)을 KBO 실전 기준으로 할인
-  // 신인은 검증되지 않았으므로 base를 낮게 잡고, 편차를 축소
   // 목표 OVR: 1R 36-40, 2-3R 32-36, 4-5R 30-33, 6-10R 27-30
-  const ROOKIE_BASE = draftRound === 1 ? 36
+  const ROOKIE_BASE = (draftRound === 1 ? 36
     : draftRound <= 3 ? 32
     : draftRound <= 5 ? 29
-    : 26;
-  const ROOKIE_SCALE = 0.3; // 스카우팅 편차의 30%만 반영
+    : 26) + baseBonus;
 
   const toKBO = (raw) => Math.max(20, Math.min(80, Math.round(ROOKIE_BASE + (raw - 50) * ROOKIE_SCALE)));
 
@@ -644,8 +656,9 @@ export function evaluateRookie(scouting) {
   // Holding: 신인은 데이터 없음 → base 그대로
   const holding = ROOKIE_BASE;
 
-  // Stamina: 나이/드래프트 기반, base에서 소폭 조정
-  const ageBonus = age >= 22 ? 2 : 0;
+  // Stamina: 나이/드래프트/학력 기반
+  // 대졸·독립리그는 체력 기반이 더 성숙
+  const ageBonus = education === '대졸' ? 3 : education === '독립리그' ? 2 : age >= 22 ? 2 : 0;
   const draftBonus = draftRound === 1 ? 1 : 0;
   const stamina = Math.min(80, ROOKIE_BASE - 3 + ageBonus + draftBonus);
 
