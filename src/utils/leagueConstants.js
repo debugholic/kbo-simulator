@@ -65,12 +65,12 @@ export const ELITE_S_PROB = {
 // ── 외국 스탯 참고 비중 (pitcherEval 용) ────────────────────────
 // KBO 기록 없는 외국인 선수 평가 시 나머지는 리그 범위 내 랜덤
 export const STAT_ANCHOR_WEIGHT = {
-  MLB:      0.40,
-  AAA:      0.25,
-  NPB:      0.30,
-  CPBL:     0.25,
-  NPB_FARM: 0.20,
-  ABL:      0.20,
+  MLB:      0.70,
+  AAA:      0.60,
+  NPB:      0.65,
+  CPBL:     0.45,
+  NPB_FARM: 0.35,
+  ABL:      0.30,
 };
 
 // ── 구종별 리그 평균 구속 범위 (km/h) ────────────────────────────

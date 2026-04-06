@@ -15,7 +15,7 @@ import {
 } from './foreignPlayerGen';
 import {
   LEAGUE_Z_OFFSETS, LEAGUE_SCORE_FLOOR, SUPPORTED_LEAGUES,
-  LEAGUE_BASE, STAT_ANCHOR_WEIGHT,
+  LEAGUE_BASE, STAT_ANCHOR_WEIGHT, ELITE_S_PROB,
 } from './leagueConstants';
 
 // 리그 연도별 stddev → 개인 수준 편차 근사치로 변환하는 배율
@@ -685,13 +685,18 @@ export function evaluateForeignSignee(baseEval, sourceLeague) {
     estimate[key] = baseEval[key];
   }
 
-  // ── 능력치 생성 (LEAGUE_BASE 랜덤 + 외국 스탯 앵커 + 엘리트 보너스) ──
-  // 엘리트 보너스: 연속 분포로 자연스러운 꼬리 (약 2.5%가 고능력)
+  // ── 엘리트 보너스: DB 스탯 수준에 따라 확률 가중 ──
+  // 앵커 가중치가 높아진 만큼, 보너스도 실제 스탯이 좋을수록 더 잘 걸리게
+  const avgEstimate = (estimate.stuff + estimate.command + estimate.control) / 3;
+  const sProb  = ELITE_S_PROB[sourceLeague] ?? 0.015;
+  // 평균 추정치 65+ 이면 S급 확률 1.5배, 60+ 이면 1.2배
+  const sMult  = avgEstimate >= 65 ? 1.5 : avgEstimate >= 60 ? 1.2 : 1.0;
   const eliteRoll = Math.random();
-  const eliteTier = eliteRoll < 0.025 ? 3  // 2.5% — S급: +12~18
-    : eliteRoll < 0.10 ? 2                  // 7.5% — A급: +6~12
-    : eliteRoll < 0.25 ? 1                  // 15%  — B급: +2~6
-    : 0;                                     // 75%  — 일반
+  const adjSProb  = Math.min(sProb * sMult, 0.12);
+  const eliteTier = eliteRoll < adjSProb            ? 3  // S급
+    : eliteRoll < adjSProb + 0.075                  ? 2  // A급 7.5%
+    : eliteRoll < adjSProb + 0.075 + 0.15           ? 1  // B급 15%
+    : 0;
   const eliteBonus = eliteTier === 3 ? rand(12, 18)
     : eliteTier === 2 ? rand(6, 12)
     : eliteTier === 1 ? rand(2, 6)
