@@ -10,41 +10,20 @@
  */
 
 import {
-  ADAPTATION_TYPES, LEAGUE_BASE, pickWeighted, clamp,
+  ADAPTATION_TYPES, pickWeighted, clamp,
   generateHints,
 } from './foreignPlayerGen';
+import {
+  LEAGUE_Z_OFFSETS, LEAGUE_SCORE_FLOOR, SUPPORTED_LEAGUES,
+  LEAGUE_BASE, STAT_ANCHOR_WEIGHT,
+} from './leagueConstants';
 
 // 리그 연도별 stddev → 개인 수준 편차 근사치로 변환하는 배율
 const LEAGUE_STDDEV_SCALE = 4;
 
-/* ── 리그 수준 변환 (z-score 오프셋) ── */
-// MLB >> AAA >= NPB > KBO
-// 각 카테고리별로 해당 리그 평균 투수가 KBO에서 z-score 몇에 해당하는지
-export const LEAGUE_Z_OFFSETS = {
-  KBO: { stuff: 0,    command: 0,    control: 0,    holding: 0,    stamina: 0    },
-  MLB: { stuff: 1.5,  command: 1.0,  control: 0.8,  holding: 0.5,  stamina: 0.5  },
-  // AAA: 재능 격차(약간 >) + 환경 보정(타고투저, BB 높은 리그)
-  // stuff는 AAA K/9이 KBO보다 높아 환경 보정 상쇄 → 중간값
-  // control은 AAA BB/9이 높은 환경이므로 더 큰 보정 필요
-  // AAA: 타고투저 환경 보정 — ERA/FIP/BB 부풀려지므로 투수에게 후한 오프셋
-  AAA: { stuff: 1.3,  command: 1.3,  control: 1.3,  holding: 0.5,  stamina: 0.5  },
-  NPB: { stuff: 0.3,  command: 0.25, control: 0.2,  holding: 0.15, stamina: 0.15 },
-  // NPB 2군(이스턴/웨스턴): KBO보다 낮은 수준
-  NPB_FARM: { stuff: -0.3, command: -0.3, control: -0.2, holding: -0.15, stamina: -0.15 },
-};
-
-export const SUPPORTED_LEAGUES = Object.keys(LEAGUE_Z_OFFSETS);
-
-// 리그별 카테고리 점수 하한선 (floor)
-// 외국 리그 선수는 KBO에 데려온 이유가 있으므로 극단적 저평가 방지
-// KBO 선수는 제한 없음 (소표본 회귀로 자연스럽게 30-40대)
-const LEAGUE_SCORE_FLOOR = {
-  KBO: 20,
-  MLB: 50,
-  AAA: 48,
-  NPB: 48,
-  NPB_FARM: 20,
-};
+// LEAGUE_Z_OFFSETS, LEAGUE_SCORE_FLOOR, SUPPORTED_LEAGUES, LEAGUE_BASE, STAT_ANCHOR_WEIGHT
+// → leagueConstants.js 에서 import
+export { LEAGUE_Z_OFFSETS, SUPPORTED_LEAGUES };
 
 // 연도별 가중치 (최신 순: 2025→2021)
 const YEAR_WEIGHTS = [12, 5, 3, 2, 1];
@@ -675,13 +654,7 @@ export function evaluateRookie(scouting) {
 
 /* ── 외국인 용병 평가 (KBO 기록 없는 외국인 = 가상 선수) ── */
 
-// 외국 스탯 참고 비중 (나머지는 리그 범위 내 랜덤)
-const STAT_ANCHOR_WEIGHT = {
-  MLB: 0.40,
-  AAA: 0.25,
-  NPB: 0.30,
-  NPB_FARM: 0.20,
-};
+// STAT_ANCHOR_WEIGHT → leagueConstants.js 에서 import
 
 function rand(min, max) {
   return Math.random() * (max - min) + min;

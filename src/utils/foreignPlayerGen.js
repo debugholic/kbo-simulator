@@ -2,6 +2,10 @@
  * 외국인 투수 생성 및 스카우팅 시스템
  */
 
+import {
+  LEAGUE_BASE, ELITE_S_PROB, PITCH_VELO,
+} from './leagueConstants';
+
 // 적응 유형
 export const ADAPTATION_TYPES = [
   { id: 'early',  label: '조기 적응형', curve: [1.00, 1.00, 1.00], prob: 0.25 },
@@ -10,25 +14,16 @@ export const ADAPTATION_TYPES = [
   { id: 'bust',   label: '부적응형',    curve: [0.55, 0.65, 0.70], prob: 0.10 },
 ];
 
-// 출신 리그별 능력치 기대값 범위
-// 상한을 높여 이론적 80 도달 가능 + 2.5% 확률로 OVR 73-78 엘리트
-export const LEAGUE_BASE = {
-  MLB: { stuff: [58, 78], command: [53, 74], control: [53, 72] },
-  AAA: { stuff: [48, 72], command: [45, 68], control: [45, 66] },
-  NPB: { stuff: [50, 70], command: [50, 70], control: [50, 68] },
-};
+// LEAGUE_BASE, ELITE_S_PROB, PITCH_VELO → leagueConstants.js 에서 import
+// LEAGUE_BASE 외부 참조용 재export (하위 호환)
+export { LEAGUE_BASE };
 
 // 구종별 구속 범위 (km/h)
 // MLB 평균 포심 ~152, 엘리트 160+; AAA ~148; NPB ~146
-const PITCH_META = {
-  '4seam':  { kor: '포심',    veloKmh: { MLB: [149,165], AAA: [144,158], NPB: [142,155] } },
-  '2seam':  { kor: '투심',    veloKmh: { MLB: [146,161], AAA: [141,155], NPB: [139,152] } },
-  sinker:   { kor: '싱커',    veloKmh: { MLB: [146,161], AAA: [141,154], NPB: [139,151] } },
-  cutter:   { kor: '커터',    veloKmh: { MLB: [140,152], AAA: [136,149], NPB: [135,147] } },
-  slider:   { kor: '슬라이더', veloKmh: { MLB: [134,149], AAA: [130,145], NPB: [129,143] } },
-  changeup: { kor: '체인지업', veloKmh: { MLB: [133,147], AAA: [129,143], NPB: [128,141] } },
-  curve:    { kor: '커브',    veloKmh: { MLB: [121,138], AAA: [117,134], NPB: [116,133] } },
-  fork:     { kor: '포크',    veloKmh: { MLB: [131,145], AAA: [128,141], NPB: [127,140] } },
+// 구종 한국어 표기 (구속은 PITCH_VELO 참조)
+const PITCH_KOR = {
+  '4seam': '포심', '2seam': '투심', sinker: '싱커', cutter: '커터',
+  slider: '슬라이더', changeup: '체인지업', curve: '커브', fork: '포크',
 };
 
 function rand(min, max) {
@@ -88,9 +83,9 @@ function generatePitches(sourceLeague, role) {
     pct = Math.max(8, Math.min(pct, remaining - (allTypes.length - i - 1) * 8));
     remaining -= pct;
 
-    const veloRange = PITCH_META[type]?.veloKmh?.[sourceLeague] || [138, 150];
+    const veloRange = PITCH_VELO[type]?.[sourceLeague] || [138, 150];
     const velo = randInt(veloRange[0], veloRange[1]);
-    const name = PITCH_META[type]?.kor || type;
+    const name = PITCH_KOR[type] || type;
 
     return { type, name, velo, pct };
   });
@@ -121,8 +116,8 @@ function generateAttributes(adaptationType, kboFit, league, trueStuff, trueComma
     work_ethic:      clamp(rand(48, 70) + (league === 'MLB' ? rand(3, 9) : rand(-4, 6)) + rand(-4, 4)),
     // 내구력: 순수 랜덤 (부상 이력 알 수 없음)
     durability:      clamp(rand(42, 68) + rand(-5, 5)),
-    // 리더십: MLB/NPB 경력자가 약간 높음
-    leadership:      clamp(rand(40, 65) + (league === 'MLB' ? rand(5, 12) : league === 'NPB' ? rand(2, 8) : rand(-4, 6)) + rand(-4, 4)),
+    // 리더십: MLB/NPB 경력자가 약간 높음, 마이너/약소리그는 낮음
+    leadership:      clamp(rand(40, 65) + (league === 'MLB' ? rand(5, 12) : league === 'NPB' ? rand(2, 8) : league === 'NPB_FARM' || league === 'ABL' ? rand(-6, 2) : rand(-4, 6)) + rand(-4, 4)),
   };
 }
 
@@ -136,9 +131,10 @@ export function generateForeignPitcher(sourceLeague = 'AAA', role = 'SP', hintPo
 
   // ── 숨겨진 진짜 능력치 (엘리트 연속 분포) ──
   const eliteRoll = Math.random();
-  const eliteTier = eliteRoll < 0.025 ? 3   // 2.5% S급
-    : eliteRoll < 0.10 ? 2                   // 7.5% A급
-    : eliteRoll < 0.25 ? 1                   // 15% B급
+  const sProb = ELITE_S_PROB[sourceLeague] ?? 0.015;
+  const eliteTier = eliteRoll < sProb             ? 3   // S급 (리그별 상이)
+    : eliteRoll < sProb + 0.075                   ? 2   // A급 7.5% (공통)
+    : eliteRoll < sProb + 0.075 + 0.15            ? 1   // B급 15%  (공통)
     : 0;
   const eliteBonus = eliteTier === 3 ? rand(12, 18)
     : eliteTier === 2 ? rand(6, 12)
