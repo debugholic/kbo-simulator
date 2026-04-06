@@ -351,18 +351,23 @@ export function useData() {
             if (rookieScout.grade_changeup != null) pitchGrades.changeup = rookieScout.grade_changeup;
             if (rookieScout.grade_sinker != null) pitchGrades.sinker = rookieScout.grade_sinker;
             if (rookieScout.grade_fork != null) pitchGrades.fork = rookieScout.grade_fork;
+            const rookiePitchMetrics = calcPitchMetrics(p.pitchStats, leagueStats);
             return {
               ...p,
-              pitcherEval: evaluateRookie({
-                maxVelo: Number(rookieScout.max_velo) || 140,
-                avgVelo: rookieScout.avg_velo ? Number(rookieScout.avg_velo) : undefined,
-                pitchGrades,
-                commandGrade: rookieScout.command_grade ?? 50,
-                controlGrade: rookieScout.control_grade ?? 50,
-                draftRound: rookieScout.draft_round ?? 10,
-                age: rookieScout.age ?? 18,
-                education: rookieScout.education ?? '고졸',
-              }),
+              pitcherEval: {
+                ...evaluateRookie({
+                  maxVelo: Number(rookieScout.max_velo) || 140,
+                  avgVelo: rookieScout.avg_velo ? Number(rookieScout.avg_velo) : undefined,
+                  pitchGrades,
+                  commandGrade: rookieScout.command_grade ?? 50,
+                  controlGrade: rookieScout.control_grade ?? 50,
+                  draftRound: rookieScout.draft_round ?? 10,
+                  age: rookieScout.age ?? 18,
+                  education: rookieScout.education ?? '고졸',
+                }),
+                pitchQuality:   rookiePitchMetrics?.quality  ?? null,
+                pitchDiversity: rookiePitchMetrics?.diversity ?? 0,
+              },
             };
           }
           if (!p.seasonStats) return p;
