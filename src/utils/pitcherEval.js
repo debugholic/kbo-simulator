@@ -674,7 +674,7 @@ function rand(min, max) {
 export function evaluateForeignSignee(baseEval, sourceLeague) {
   if (!baseEval || baseEval.stuff == null) return null;
 
-  const anchorW = STAT_ANCHOR_WEIGHT[sourceLeague] || 0.25;
+  const anchorW = STAT_ANCHOR_WEIGHT;
   const leagueRange = LEAGUE_BASE[sourceLeague] || LEAGUE_BASE.AAA;
   const starter = baseEval.isStarterRole;
   const role = starter ? 'SP' : 'RP';
