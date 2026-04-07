@@ -639,7 +639,7 @@ export function evaluateRookie(scouting) {
 
   // Stamina: 나이/드래프트/학력 기반
   // 대졸·독립리그는 체력 기반이 더 성숙
-  const ageBonus = education === '대졸' ? 3 : education === '독립리그' ? 2 : age >= 22 ? 2 : 0;
+  const ageBonus = source_league === 'COLLEGE' ? 3 : source_league === 'INDIE' ? 2 : age >= 22 ? 2 : 0;
   const draftBonus = draftRound === 1 ? 1 : 0;
   const stamina = Math.min(80, ROOKIE_BASE - 3 + ageBonus + draftBonus);
 
