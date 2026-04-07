@@ -239,9 +239,13 @@ export function useData() {
         const attrMap = {};
         (attrRes.data || []).forEach(a => { attrMap[a.player_id] = a; });
 
-        // 신인 투수 스카우팅을 player_id 기준 맵으로 변환
+        // 신인 투수 스카우팅을 player_id 기준 맵으로 변환 (year 최신 레코드 우선)
         const rookieScoutMap = {};
-        (rookieScoutingRes.data || []).forEach(r => { rookieScoutMap[r.player_id] = r; });
+        (rookieScoutingRes.data || [])
+          .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
+          .forEach(r => {
+            if (!rookieScoutMap[r.player_id]) rookieScoutMap[r.player_id] = r;
+          });
 
         // 리그 평균/표준편차 계산 (구종)
         const leagueStats = calcLeaguePitchStats(allPitchRes.data || []);
@@ -387,7 +391,7 @@ export function useData() {
                   controlGrade: rookieScout.control_grade ?? 50,
                   draftRound: rookieScout.draft_round ?? 10,
                   age: rookieScout.age ?? 18,
-                  education: rookieScout.education ?? '고교 리그',
+                  education: rookieScout.education ?? 'HIGH_SCHOOL',
                 }),
                 pitchQuality:   rookiePitchMetrics?.quality  ?? null,
                 pitchDiversity: rookiePitchMetrics?.diversity ?? 0,

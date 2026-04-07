@@ -599,18 +599,18 @@ export function evaluateRookie(scouting) {
     maxVelo = 140, avgVelo, pitchGrades = {},
     commandGrade = 50, controlGrade = 50,
     draftRound = 10, age = 18,
-    education = '고교 리그',
+    education = 'HIGH_SCHOOL',
   } = scouting;
 
   // education별 스케일/베이스 보정
   // scale: 스카우팅 등급 신뢰도 / baseBonus: 실전 경험 반영 기저 보정
   const EDU_CONFIG = {
-    '고교 리그': { scale: 0.30, baseBonus: 0 },  // 미검증, 잠재력 중심
-    '독립 리그': { scale: 0.37, baseBonus: 1 },  // 실전 경험 있으나 수준 낮음
-    '대학 리그': { scale: 0.45, baseBonus: 2 },  // 즉전감, 스카우팅 신뢰도 높음
-    'KBO_FARM':  { scale: 0.52, baseBonus: 4 },  // 퓨처스 경험, 프로 적응 완료
+    HIGH_SCHOOL: { scale: 0.30, baseBonus: 0 },  // 미검증, 잠재력 중심
+    INDIE:       { scale: 0.37, baseBonus: 1 },  // 실전 경험 있으나 수준 낮음
+    COLLEGE:     { scale: 0.45, baseBonus: 2 },  // 즉전감, 스카우팅 신뢰도 높음
+    KBO_FARM:    { scale: 0.52, baseBonus: 4 },  // 퓨처스 경험, 프로 적응 완료
   };
-  const { scale: ROOKIE_SCALE, baseBonus } = EDU_CONFIG[education] ?? EDU_CONFIG['고교 리그'];
+  const { scale: ROOKIE_SCALE, baseBonus } = EDU_CONFIG[education] ?? EDU_CONFIG.HIGH_SCHOOL;
 
   // 스카우팅 등급(잠재력)을 KBO 실전 기준으로 할인
   // 목표 OVR: 1R 36-40, 2-3R 32-36, 4-5R 30-33, 6-10R 27-30
