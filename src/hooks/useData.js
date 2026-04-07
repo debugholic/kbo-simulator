@@ -338,9 +338,16 @@ export function useData() {
 
         // 각 투수에 대해 5대 능력치 산출
         const playersWithEval = flatPlayers.map(p => {
-          // 스카우팅 기반 신인 평가 (시즌 스탯 없는 투수)
           const rookieScout = rookieScoutMap[p.id];
-          if (!p.seasonStats && rookieScout) {
+
+          // KBO 1군 기록 유무 판별: 전체 시즌 중 source_league='KBO' 기록이 하나라도 있는지
+          // (퓨처스/마이너/독립리그만 있는 경우 false → evaluateRookie 경로 사용)
+          const hasKBORecord = (p.allSeasonStats || []).some(
+            s => (s.source_league || 'KBO') === 'KBO'
+          );
+
+          // 스카우팅 기반 신인 평가: 1군 데뷔 전 선수 (시즌 스탯 없거나 퓨처스만 있는 경우)
+          if (!hasKBORecord && rookieScout) {
             const pitchGrades = {};
             let maxVelo = Number(rookieScout.max_velo) || 140;
             let avgVelo = rookieScout.avg_velo ? Number(rookieScout.avg_velo) : undefined;
@@ -380,7 +387,7 @@ export function useData() {
                   controlGrade: rookieScout.control_grade ?? 50,
                   draftRound: rookieScout.draft_round ?? 10,
                   age: rookieScout.age ?? 18,
-                  education: rookieScout.education ?? '고졸',
+                  education: rookieScout.education ?? '고교 리그',
                 }),
                 pitchQuality:   rookiePitchMetrics?.quality  ?? null,
                 pitchDiversity: rookiePitchMetrics?.diversity ?? 0,
@@ -389,11 +396,6 @@ export function useData() {
           }
           if (!p.seasonStats) return p;
           const sourceLeague = p.seasonStats.source_league || 'KBO';
-
-          // KBO 기록 유무 판별: 전체 시즌 중 KBO 기록이 하나라도 있는지
-          const hasKBORecord = (p.allSeasonStats || []).some(
-            s => (s.source_league || 'KBO') === 'KBO'
-          );
 
           const eval5 = evaluatePitcher(
             {
