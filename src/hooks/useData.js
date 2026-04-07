@@ -224,8 +224,7 @@ export function useData() {
           // 용병 스카우팅 힌트 템플릿
           supabase.from('player_scouting_opinions')
             .select('category, condition_key, hint_type, opinion')
-            .eq('context', 'foreign_signee')
-            .is('player_id', null),
+            .eq('context', 'foreign_signee'),
           // 선수 특성 구간별 의견
           supabase.from('player_attribute_scouting_opinions')
             .select('attribute, range_min, range_max, description'),
@@ -343,21 +342,39 @@ export function useData() {
           const rookieScout = rookieScoutMap[p.id];
           if (!p.seasonStats && rookieScout) {
             const pitchGrades = {};
-            if (rookieScout.grade_4seam != null) pitchGrades['4seam'] = rookieScout.grade_4seam;
-            if (rookieScout.grade_2seam != null) pitchGrades['2seam'] = rookieScout.grade_2seam;
-            if (rookieScout.grade_cutter != null) pitchGrades.cutter = rookieScout.grade_cutter;
-            if (rookieScout.grade_curve != null) pitchGrades.curve = rookieScout.grade_curve;
-            if (rookieScout.grade_slider != null) pitchGrades.slider = rookieScout.grade_slider;
-            if (rookieScout.grade_changeup != null) pitchGrades.changeup = rookieScout.grade_changeup;
-            if (rookieScout.grade_sinker != null) pitchGrades.sinker = rookieScout.grade_sinker;
-            if (rookieScout.grade_fork != null) pitchGrades.fork = rookieScout.grade_fork;
+            let maxVelo = Number(rookieScout.max_velo) || 140;
+            let avgVelo = rookieScout.avg_velo ? Number(rookieScout.avg_velo) : undefined;
+
+            if (p.pitchStats) {
+              // pitcher_pitch_type_stats 우선: val100 → 20-80 스카우팅 등급 변환
+              const PITCH_KEYS = ['4seam','2seam','cutter','curve','slider','changeup','sinker','fork'];
+              for (const type of PITCH_KEYS) {
+                const val = p.pitchStats[`val100_${type}`];
+                const pct = p.pitchStats[`pct_${type}`];
+                if (val != null && pct != null && Number(pct) > 0) {
+                  const lg = leagueStats[type];
+                  const grade = lg
+                    ? 50 + ((Number(val) - lg.mean) / lg.std) * 10
+                    : 50 + Number(val) * 10;
+                  pitchGrades[type] = Math.max(20, Math.min(80, Math.round(grade)));
+                }
+              }
+              // 패스트볼 구속 우선 사용
+              const fbVelo = Math.max(
+                p.pitchStats.velo_4seam ? Number(p.pitchStats.velo_4seam) : 0,
+                p.pitchStats.velo_2seam ? Number(p.pitchStats.velo_2seam) : 0,
+                p.pitchStats.velo_sinker ? Number(p.pitchStats.velo_sinker) : 0,
+              );
+              if (fbVelo > 0) maxVelo = fbVelo;
+            }
+
             const rookiePitchMetrics = calcPitchMetrics(p.pitchStats, leagueStats);
             return {
               ...p,
               pitcherEval: {
                 ...evaluateRookie({
-                  maxVelo: Number(rookieScout.max_velo) || 140,
-                  avgVelo: rookieScout.avg_velo ? Number(rookieScout.avg_velo) : undefined,
+                  maxVelo,
+                  avgVelo,
                   pitchGrades,
                   commandGrade: rookieScout.command_grade ?? 50,
                   controlGrade: rookieScout.control_grade ?? 50,
