@@ -391,7 +391,7 @@ export function useData() {
                   controlGrade: rookieScout.control_grade ?? 50,
                   draftRound: rookieScout.draft_round ?? 10,
                   age: rookieScout.age ?? 18,
-                  education: rookieScout.education ?? 'HIGH_SCHOOL',
+                  source_league: rookieScout.source_league ?? 'HIGH_SCHOOL',
                 }),
                 pitchQuality:   rookiePitchMetrics?.quality  ?? null,
                 pitchDiversity: rookiePitchMetrics?.diversity ?? 0,
