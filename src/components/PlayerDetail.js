@@ -199,7 +199,7 @@ function classifySlider(sliderVelo, sliderWhiff, fastballVelo) {
     const gap = fastballVelo - sliderVelo;
     if (gap >= 20) score += 3;
     else if (gap >= 17) score += 2;
-    else if (gap >= 14) score += 1;
+    else if (gap >= 13) score += 1;
     else if (gap <= 8) score -= 2;
     else if (gap <= 10) score -= 1;
   }
