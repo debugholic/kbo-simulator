@@ -204,14 +204,14 @@ function classifySlider(sliderVelo, sliderWhiff, fastballVelo) {
     else if (gap <= 10) score -= 1;
   }
 
-  // (2) 절대 구속 — 스위퍼 125~132km, 슬라이더 133km+
+  // (2) 절대 구속 — 스위퍼 125~135km, 슬라이더 136km+
   if (sliderVelo != null) {
     const v = Number(sliderVelo);
     if (v <= 126) score += 3;
     else if (v <= 129) score += 2;
-    else if (v <= 132) score += 1;
-    else if (v >= 137) score -= 2;
-    else if (v >= 135) score -= 1;
+    else if (v <= 135) score += 1;
+    else if (v >= 140) score -= 2;
+    else if (v >= 138) score -= 1;
   }
 
   // (3) 헛스윙률 — 스위퍼는 수평 무브먼트로 높은 whiff 유도
@@ -222,8 +222,8 @@ function classifySlider(sliderVelo, sliderWhiff, fastballVelo) {
     else if (w <= 20) score -= 1;
   }
 
-  // score >= 3 → 스위퍼 확정
-  return score >= 3 ? '스위퍼' : '슬라이더';
+  // score >= 2 → 스위퍼 확정
+  return score >= 2 ? '스위퍼' : '슬라이더';
 }
 
 // 능력치 연도 가중치와 동일하게 최근 시즌 우선 블렌딩
