@@ -1,0 +1,348 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.60);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 960px;
+  max-width: 98vw;
+  max-height: 94vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 헤더 ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 0;
+  flex-shrink: 0;
+}
+.headerLeft { display: flex; gap: 8px; align-items: center; }
+.badge {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text2);
+}
+.playerBadge {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 8px;
+  background: #1976D222;
+  color: #42A5F5;
+}
+.closeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+/* ── 바디: 3단 레이아웃 ── */
+.body {
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── 왼쪽: 선수 선택 패널 ── */
+.sidePanel {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  padding: 12px 0 0;
+}
+
+.searchWrap {
+  padding: 0 10px 8px;
+  flex-shrink: 0;
+}
+.searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text1);
+  font-size: 12px;
+  outline: none;
+}
+.searchInput:focus { border-color: #42A5F5; }
+
+.pitcherList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.emptyMsg { font-size: 12px; color: var(--text2); text-align: center; padding: 12px 0; }
+
+/* 선수 카드 */
+.pitcherCard {
+  width: 100%;
+  text-align: left;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pitcherCard:hover { border-color: #42A5F5; }
+.pitcherCardSelected { border-color: #42A5F5 !important; }
+
+.pitcherCardTop {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.pitcherCardName { font-size: 12px; font-weight: 700; color: var(--text1); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pitcherCardPos  { font-size: 10px; color: var(--text2); }
+.pitcherCardOvr  { font-size: 11px; font-weight: 800; }
+.pitcherCardTeam { font-size: 10px; font-weight: 600; margin-bottom: 3px; }
+.pitcherCardStats { display: flex; flex-wrap: wrap; gap: 2px 6px; font-size: 10px; color: var(--text2); }
+.pitcherCardStats b { font-weight: 700; }
+
+/* 구종 패널 */
+.pitchTypesWrap {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px 10px;
+  flex-shrink: 0;
+}
+.ptBadge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+.ptBadgeDot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ptBadgeLabel{ flex: 1; color: var(--text1); font-weight: 600; }
+.ptBadgePct  { color: var(--text2); min-width: 26px; text-align: right; }
+.ptBadgeVelo { color: var(--text2); min-width: 32px; text-align: right; }
+
+/* ── 가운데: 존 ── */
+.zoneWrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px 12px;
+  gap: 8px;
+  border-right: 1px solid var(--border);
+}
+
+.zoneSvg {
+  border-radius: 10px;
+  display: block;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  max-width: 420px;
+}
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text2);
+}
+.legendDot { width: 7px; height: 7px; border-radius: 50%; }
+
+/* ── 오른쪽: 정보 패널 ── */
+.infoPanel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 12px;
+  overflow-y: auto;
+}
+
+/* 능력치 바 */
+.evalCard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.evalRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.evalLabel { font-size: 11px; color: var(--text2); min-width: 40px; }
+.evalBar { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.evalFill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.evalVal  { font-size: 12px; font-weight: 700; min-width: 24px; text-align: right; }
+
+/* 카운트 */
+.countDisplay {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text1);
+  padding: 8px 12px;
+  background: var(--bg2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.countLabel  { color: var(--text2); font-size: 11px; margin-right: 3px; font-weight: 400; }
+.countBalls  { color: #66BB6A; }
+.countStrikes{ color: #EF5350; }
+.countOuts   { color: #FFA726; }
+.pitchNum    { margin-left: auto; color: var(--text2); font-size: 11px; font-weight: 400; }
+
+/* 버튼 */
+.pitchBtn {
+  padding: 11px 0;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, #1565C0, #42A5F5);
+  color: #fff;
+  transition: opacity 0.15s;
+}
+.pitchBtn:disabled {
+  background: var(--bg2);
+  color: var(--text2);
+  border: 1px solid var(--border);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.pitchBtn:not(:disabled):hover { opacity: 0.88; }
+.pitchBtn:not(:disabled):active { opacity: 0.75; }
+
+.resetBtn {
+  padding: 7px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg2);
+  color: var(--text2);
+}
+.resetBtn:hover { opacity: 0.8; }
+
+/* 결과 카드 */
+.resultCard {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+}
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+.resultRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.resultLabel { color: var(--text2); }
+.resultValue { color: var(--text1); font-weight: 600; }
+
+/* 투수 의도 */
+.reasoningCard {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #1e3a5a;
+  background: #0d1e2e;
+}
+.reasoningLine {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  color: #a8c4e0;
+  line-height: 1.55;
+  padding: 1px 0;
+}
+.reasoningBullet {
+  color: #42A5F5;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* 디버그 */
+.debugToggle {
+  font-size: 11px;
+  color: var(--text2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.debugPanel {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #111620;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #8892b0;
+  line-height: 1.7;
+}
+.dk { color: #64ffda; }
+.dv { color: #ccd6f6; }
+
+/* 로그 */
+.logWrap {
+  max-height: 150px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.logRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.logRow:nth-child(odd) { background: #ffffff06; }
+.logNum  { color: var(--text2); min-width: 18px; text-align: right; }
+.logVelo { color: var(--text2); min-width: 36px; text-align: right; font-size: 10px; }
