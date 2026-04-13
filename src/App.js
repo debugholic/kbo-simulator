@@ -7,7 +7,7 @@ import ScoutingDemo from './components/ScoutingDemo';
 import ConfidenceDemo from './components/ConfidenceDemo';
 import GrowthSimDemo from './components/GrowthSimDemo';
 import TradeDemo from './components/TradeDemo';
-import PitchSimDemo from './components/PitchSimDemo';
+import GamePlaySimDemo from './components/GamePlaySimDemo';
 import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor, calcAge } from './utils';
 import { useData } from './hooks/useData';
 import styles from './App.module.css';
@@ -166,7 +166,7 @@ export default function App() {
               onClick={() => setShowPitchSim(true)}
               style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, background: '#F4431622', border: '1px solid #F4431644', color: '#F44316', cursor: 'pointer', fontWeight: 600 }}
             >
-              ⚾ 투구 시뮬
+              ⚾ 경기 시뮬
             </button>
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function App() {
       {showConfidence && <ConfidenceDemo onClose={() => setShowConfidence(false)} />}
       {showGrowthSim && <GrowthSimDemo onClose={() => setShowGrowthSim(false)} />}
       {showTrade && <TradeDemo onClose={() => setShowTrade(false)} players={players} teams={teams} attrOpinions={attrOpinions} />}
-      {showPitchSim && <PitchSimDemo onClose={() => setShowPitchSim(false)} players={players} teamsMap={teamsMap} />}
+      {showPitchSim && <GamePlaySimDemo onClose={() => setShowPitchSim(false)} players={players} teamsMap={teamsMap} />}
 
       <main className={styles.main}>
         <TeamSelector

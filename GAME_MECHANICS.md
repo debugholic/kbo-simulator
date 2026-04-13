@@ -122,14 +122,12 @@ tension 초기값:
 
 ### 2-3. 경기 중 소모
 
-**컨디션 갱신 타이밍:**
+**갱신 타이밍:**
 
 | 갱신 대상 | 시점 |
 |-----------|------|
-| 구종별 컨디션 | 매 투구 피드백 반영 단계 (§3 참조) |
-| 전체 컨디션 | 타석 이벤트(타격·수비·주루) 완료 직후 |
-| 체력(physique) | 타석 이벤트 완료 직후 + 투수는 매 투구마다 추가 소모 |
-| 긴장도 | 매 투구 피드백 반영 단계 |
+| 긴장도 / 컨디션 / 체력 | 볼데드 선언 시마다 (§2-7 참조) |
+| 구종별 컨디션 (투수) | 투구 결과 볼데드 시 (§2-7 참조) |
 | 피로도 | 이닝 종료 시 (경기 전 값에 누적) |
 
 **전체 컨디션 감소/회복 (타석 이벤트 완료 직후):**
@@ -300,6 +298,53 @@ attributesMod:
 
 ---
 
+### 2-7. 볼데드 이벤트 처리
+
+볼데드가 선언될 때마다 실행된다.  
+이벤트 종류에 따라 관련 선수의 긴장도·컨디션·체력을 즉시 갱신하며,  
+갱신된 값은 다음 **투구 계획(§3-4) · 타격 계획(§4-4) · 주루 계획(§7)** 수립에 즉시 반영된다.
+
+**이벤트 종류별 갱신 대상:**
+
+| 볼데드 이벤트 | 갱신 대상 | 갱신 항목 |
+|---|---|---|
+| 투구 결과 (스트라이크 / 볼 / 파울 / 헛스윙) | 투수, 타자 | 긴장도, 체력, 구종 컨디션(투수) |
+| 타격 결과 (안타 / 아웃 / 홈런 등) | 타자, 투수, 야수 | 긴장도, 컨디션, 체력 |
+| 주루 플레이 완료 (진루 / 도루 / 태그아웃 등) | 주자, 야수 | 긴장도, 컨디션, 체력 |
+| 수비 플레이 완료 (실책 / 호수비 등) | 야수, 투수 | 긴장도, 컨디션, 체력 |
+
+긴장도 갱신 → §2-4 이벤트 테이블 적용  
+컨디션·체력 갱신 → §2-3 소모/회복 테이블 적용
+
+**투수 구종 컨디션 갱신 (투구 결과 볼데드 시):**
+
+```
+직전 투구 결과를 바탕으로 해당 구종의 컨디션을 갱신한다.
+소모는 없고 결과에 따라 오르내리기만 한다.
+
+헛스윙 유도 성공        → pitchTypeCondition[type] += 3.0   // 잘 먹히고 있음
+루킹 스트라이크         → pitchTypeCondition[type] += 1.0   // 위치 좋음
+파울 유도 (2스트라이크) → pitchTypeCondition[type] += 1.5   // 타자가 쫓아옴
+피안타 (라인드라이브+)  → pitchTypeCondition[type] -= 4.0   // 타자가 맞춰냄
+피홈런                  → pitchTypeCondition[type] -= 6.0   // 완전히 읽힘
+볼 (크게 벗어남)        → pitchTypeCondition[type] -= 1.5   // 제구 안 됨
+연속 사용 후 피안타     → pitchTypeCondition[type] -= 2.0   // 타자 적응
+
+clamp(40, 100)
+```
+
+**다음 계획 수립 연결:**
+
+| 계획 | 참조하는 피드백 값 |
+|---|---|
+| 투구 계획 (§3-4) | 투수 긴장도, 구종 컨디션, 상황 데이터 |
+| 타격 계획 (§4-4) | 타자 긴장도, 수비 대형, 상황 데이터 |
+| 주루 계획 (§7) | 주자 긴장도, 상황 데이터 |
+
+**구현 상태:** ⬜
+
+---
+
 ## 3. 투구
 
 ### 3-1. 투수 능력치
@@ -341,10 +386,11 @@ pitchTypeCondition[type] = clamp(
 
 ### 3-3. ① 피드백 반영
 
-매 투구마다 실행된다. **갱신 대상은 구종별 컨디션과 긴장도**다.  
-전체 컨디션·체력·피로도는 타석 이벤트(타격·수비·주루) 완료 직후 별도 처리한다. (§2 참조)
+매 투구 결과 볼데드 시 실행된다. 긴장도·체력·구종 컨디션 갱신 → **§2-7 볼데드 이벤트 처리 참조**.
 
-**해석하는 상황 데이터:**
+갱신된 값은 다음 투구 계획(§3-4) 수립에 즉시 반영된다.
+
+**투구 계획 수립 시 참조하는 상황 데이터:**
 
 | 데이터 | 설명 |
 |--------|------|
@@ -354,36 +400,6 @@ pitchTypeCondition[type] = clamp(
 | 주자 상황 | 득점권 주자 유무, 주자 주루 위협도 |
 | 스코어 차이 | 접전 / 대량 리드 / 뒤지는 상황 |
 | Command / Control 현재 수준 | 전체 컨디션·체력에 의해 실시간 변동 |
-
-**구종별 컨디션 피드백:**
-
-```
-직전 투구 결과를 바탕으로 해당 구종의 컨디션을 갱신한다.
-소모는 없고 결과에 따라 오르내리기만 한다.
-
-헛스윙 유도 성공       → pitchTypeCondition[type] += 3.0   // 잘 먹히고 있음 → 더 좋아짐
-루킹 스트라이크        → pitchTypeCondition[type] += 1.0   // 위치 좋음
-파울 유도 (2스트라이크)→ pitchTypeCondition[type] += 1.5   // 타자가 쫓아옴
-피안타 (라인드라이브+) → pitchTypeCondition[type] -= 4.0   // 타자가 맞춰냄
-피홈런                 → pitchTypeCondition[type] -= 6.0   // 완전히 읽힘
-볼 (크게 벗어남)       → pitchTypeCondition[type] -= 1.5   // 오늘 이 구종 제구 안 됨
-연속 사용 후 피안타    → pitchTypeCondition[type] -= 2.0   // 타자 적응
-
-clamp(40, 100)  // 하한 40: 오늘 안 좋은 구종도 완전히 잃지는 않음
-```
-
-**긴장도 갱신:**
-
-긴장도는 이 단계에서 갱신된다. 직전 투구 결과 이벤트를 §2 이벤트 테이블에 따라 적용.
-
-```
-// 예시
-헛스윙     → tension += 5  (삼진 탈삼진에 준함)
-피홈런     → tension += 15
-볼넷 허용  → tension += 8
-득점권 실점 → tension += 12
-...
-```
 
 ---
 
@@ -638,10 +654,11 @@ velocity = targetVelo
 
 ### 4-3. ① 피드백 반영
 
-상황 데이터를 해석하고 긴장도를 갱신한다.  
-전체 컨디션·체력 갱신은 타석 종료 후 §2에서 처리한다.
+볼데드 시마다 긴장도·체력 갱신 → **§2-7 볼데드 이벤트 처리 참조**.
 
-**해석하는 상황 데이터:**
+갱신된 값은 다음 타격 계획(§4-4) 수립에 즉시 반영된다.
+
+**타격 계획 수립 시 참조하는 상황 데이터:**
 
 | 데이터 | 설명 |
 |--------|------|
@@ -651,25 +668,7 @@ velocity = targetVelo
 | 스코어 차이 | 접전 / 대량 리드 / 역전 필요 |
 | 투수 현재 상태 | 구속 추이, 최근 제구 |
 | 포수 리드 경향 | 이 타석에서 어떤 공이 올 것인가 |
-
-**긴장도 갱신 (§2 이벤트 테이블 적용):**
-
-```
-직전 타석 결과 반영:
-  안타       → tension -= 5
-  삼진       → tension += 10
-  득점권 삼진 → tension += 18
-  홈런       → tension -= 12
-  볼넷       → tension -= 3
-  범타       → tension += 3
-
-현재 상황 반영:
-  득점권 주자 있음   → tension += (runners_weight * 5)
-  역전/동점 상황     → tension += 8
-  대량 리드 (5+)    → tension -= 5
-
-clamp(0, 100)
-```
+| 수비 대형 | 시프트 여부 / 내야 전진 수비 여부 |
 
 ---
 
@@ -729,21 +728,43 @@ ZoneRegion:
 **목표 타구 (targetBallResult):**
 
 ```
-타자에게 긍정적인 결과만 포함. 삼진·팝업 등 부정 결과는 목표로 생성되지 않음.
+타자가 만들어내고 싶은 타구의 종류. 의도형으로 정의하며 null = 목표 없음 (아무거나).
+삼진·팝업 등 부정 결과는 목표로 생성되지 않음. 안치기(take)는 tactic으로 표현.
 
-BallResult (긍정):
-  'line_drive'        — 정타로 낮고 빠른 타구
-  'grounder'          — 땅볼
-  'bloop_hit'         — 내야수 키를 넘기는 타구
-  'deep_fly'          — 외야 깊게 멀리 띄운다
-  'bunt_for_a_hit'    — 안타를 목적으로 만드는 번트 타구 
-  'base_hit_bunt'     — 안정적인 번트 타구
-  'walk'              — 공 고른다 (take)
-  'home_run'          — 강하게 띄워 넘긴다
+방향이 있는 타구는 전술적 이유가 있을 때 생성된다:
+  grounder / line_drive 좌측  — 시프트 역이용 (열린 좌측 공간 공략)
+  grounder / line_drive 우측  — 1루수 이탈 시 1-2루 간 공략, 주자 진루
+  bloop                       — 내야 전진 수비 시 내야수 뒤 공간 노림
+  deep_fly_right_or_center    — 2루 주자 3루 진루 목적 (우중간이 유리)
 
-// power 높으면 home_run 선호
-// speed 높으면 grounder / bloop_hit / push_bunt /  선호
-// 득점권: sacrifice_fly / hit 가중치 증가
+TargetBallResult:
+
+  // 땅볼
+  'grounder_any'        — 방향 무관 강한 땅볼
+  'grounder_left'       — 좌측 방향 땅볼  (시프트 역이용 등)
+  'grounder_center'     — 중앙 방향 땅볼
+  'grounder_right'      — 우측 방향 땅볼  (진루타, 1-2루 간 공략)
+
+  // 직선
+  'line_drive_left'     — 좌측 직선 타구  (시프트 역이용 등)
+  'line_drive_center'   — 중앙 직선 타구
+  'line_drive_right'    — 우측 직선 타구  (1-2루 간 공략)
+
+  // 플레어 — 배트를 짧게 쥐고 내야수 키를 살짝 넘기는 타구
+  'bloop_left'          — 좌측 플레어
+  'bloop_right'         — 우측 플레어
+  'bloop_any'           — 방향 무관 플레어
+
+  // 뜬공 — 방향 의도 가능 (주자 진루 전술 등)
+  'deep_fly_any'              — 방향 무관 깊은 뜬공 (희생 플라이 등)
+  'deep_fly_right_center'  — 중앙~우측 방향 깊은 뜬공 (2루 주자 3루 진루 목적)
+
+  // 홈런
+  'home_run'            — 담장을 넘기는 강한 타구
+
+  // 번트
+  'sharp_bunt'          — 빠르고 예리하게 찍어내는 번트 (기습)
+  'soft_bunt'           — 부드럽게 굴리는 번트 (보내기)
 ```
 
 **목표 스윙 레벨 (targetSwingLevel):**
@@ -761,9 +782,10 @@ BallResult (긍정):
     take            → targetSwingLevel = 0 (스윙 없음)
 
   목표 타구:
-    home_run / extra_base → 높음 보정
-    line_drive / hit      → 중간 보정
-    sacrifice_fly         → 중간 보정 (정확성 우선)
+    home_run                          → 높음 보정
+    deep_fly_* / line_drive_*         → 중간~높음 보정
+    grounder_* / bloop_*              → 중간 보정
+    sharp_bunt / soft_bunt            → 낮음 보정 (정확성 우선)
 
   상황:
     풀카운트 (3-2)    → 보정 없음 (반응 우선)
@@ -775,7 +797,7 @@ BallResult (긍정):
 
 ---
 
-### 4-5. ③ 판단
+### 4-5. ③ 투구 판단
 
 투수가 공을 릴리스하는 순간 타자는 구종과 투구 위치를 최종 판단한다.  
 타격 계획의 **예측 구종·예측 존이 선입견으로 작용**해 판단에 영향을 미친다.  
@@ -828,64 +850,103 @@ judgementAccuracy = eyeNorm * 0.6 - (pitchQuality / 100) * 0.4
 
 ### 4-6. ④ 스윙 레벨 생성
 
-③ 판단 결과를 바탕으로, 실제 스윙 여부와 스윙 강도를 결정한다.
+③ 투구 판단 결과로 형성된 예측 위치 분포가 스트라이크 존과 겹치는 비율(strikeZoneOverlap)과
+타격 계획을 바탕으로 스윙 여부와 스윙 강도를 결정한다.
+
+**스트라이크 존 오버랩 (strikeZoneOverlap):**
+
+```
+③ 투구 판단 결과로 형성된 예측 위치 분포 중 스트라이크 존에 해당하는 비율.
+
+  1.0 — 존 한가운데, 확실한 스트라이크
+  0.5 — 경계 부근, 절반은 스트라이크
+  0.0 — 완전히 존 밖, 확실한 볼
+```
 
 **스윙 여부 결정:**
 
 ```
-판단한 구종·위치를 바탕으로, 이 공을 칠 것인지 보낼 것인지 결정.
+우선순위:
 
-볼 판단 → 노스윙 (take)
-  단, take 작전이 아니더라도 eye 높으면 볼 판별 정확
-  eye 낮거나 판단 오류 → 볼에도 스윙 가능
+  1. tactic = 'take' (감독 테이크 사인)
+     → 무조건 노스윙
 
-스트라이크 판단 → 스윙 (tactic이 take이면 무조건 노스윙)
+  2. targetBallResult = 'take' (타자 자율 기다림)
+     → swingThreshold = 0.85~0.95 (거의 완벽한 스트라이크가 아니면 보냄)
 
-판단 오류 시:
-  실제 볼인데 스트라이크로 잘못 봄 → 헛스윙 위험
-  실제 스트라이크인데 볼로 잘못 봄 → 루킹 삼진 위험
+  3. targetBallResult = null (아무거나)
+     → swingThreshold = eye 기반
 
-swingDecision = 'swing' | 'take'
+  4. targetBallResult = 특정 타구
+     → swingThreshold = eye 기반 + planMod
+
+swingThreshold 결정:
+
+  baseThreshold(eye):
+    eye 높음 → threshold 높음  // 확실한 스트라이크만 스윙
+    eye 낮음 → threshold 낮음  // 애매한 공도 스윙
+
+  planMod (targetBallResult):
+    'home_run'          → -0.10  // 적극적 스윙
+    'deep_fly_*'        → -0.05
+    'line_drive_*'      →  0.00
+    'grounder_*'        →  0.00
+    'bloop_*'           → -0.08  // 컨택 우선
+    'sharp_bunt'        → -0.10
+    'soft_bunt'         → -0.10
+
+strikeZoneOverlap >= swingThreshold → 스윙
+strikeZoneOverlap <  swingThreshold → 노스윙
 ```
 
-**스윙 레벨 계산:**
+**스윙 레벨 결정:**
 
 ```
-// targetSwingLevel: ② 타격 계획에서 결정한 기준값
-// 이 값에서 출발해 판단 결과·상태 보정을 가한다.
+base = targetSwingLevel  // ② 타격 계획 기준값
+       (targetBallResult = null 이면 카운트·상황 기반 default)
 
-rawSwingLevel = targetSwingLevel
+보정:
 
-1. ③ 판단 결과 보정:
-  선입견 강화 (예측 적중)   → rawSwingLevel × 1.10   // 확신 → 강하게
-  정확 판단 (무계획 성공)   → rawSwingLevel × 1.03
-  중립 판단 (무계획 보통)   → 보정 없음
-  선입견 방해 (예측 빗나감) → rawSwingLevel × 0.85   // 흔들림 → 망설임
-  속구↔변화구 계열 혼동     → rawSwingLevel × 0.65   // 타이밍 크게 어긋남
+  1. 오버랩 신뢰도:
+     (strikeZoneOverlap - swingThreshold) 클수록 확신 → 상향
+     // 스트라이크 존 한가운데일수록 강하게 스윙
 
-2. 긴장도 보정 (Yerkes-Dodson):
-  최적 구간 (20~65) → 보정 없음
-  방심 구간 (<20)   → rawSwingLevel × 0.90  // 집중력 부족
-  과긴장 구간 (>65) → rawSwingLevel × (1 - (tension - 65) / 200)
-                      // tension=80 → ×0.925, tension=100 → ×0.825
+  2. ③ 투구 판단 결과:
+     선입견 강화 (예측 적중)   → × 1.10
+     정확 판단 (무계획 성공)   → × 1.03
+     중립 판단 (무계획 보통)   → 보정 없음
+     선입견 방해 (예측 빗나감) → × 0.85
+     속구↔변화구 계열 혼동     → × 0.65
 
-3. 컨디션 보정:
-  conditionMod = condition / 100
-  rawSwingLevel × (0.80 + conditionMod * 0.20)
+  3. 긴장도 보정 (Yerkes-Dodson):
+     최적 구간 (20~65) → 보정 없음
+     방심 구간 (<20)   → × 0.90
+     과긴장 구간 (>65) → × (1 - (tension - 65) / 200)
 
-swingLevel = clamp(rawSwingLevel, 0, 100) + gaussian(0, 3)
-clamp(0, 100)
+  4. 컨디션 보정:
+     × (0.80 + condition / 100 * 0.20)
+
+  5. 선수 특성 보정:
+     power 높음 + home_run / deep_fly_* → 상한 보정 +
+     contact 높음 + grounder_* / bloop_* → 안정적 레벨 유지
+     speed 높음 + sharp_bunt            → 낮은 레벨로 충분
+
+swingLevel = clamp(rawSwingLevel + gaussian(0, 3), 0, 100)
 ```
 
-**스윙 레벨 해석:**
+**타격 계획별 양상:**
 
-| 스윙 레벨 | 의미 |
-|-----------|------|
-| 0         | 노스윙 (take) |
-| 1 ~ 30    | 컨택 스윙 (밀어치기, 번트 등) |
-| 31 ~ 60   | 중간 스윙 |
-| 61 ~ 85   | 강한 스윙 |
-| 86 ~ 100  | 풀스윙 (홈런 노림) |
+| targetBallResult | swingThreshold | swingLevel 경향 |
+|---|---|---|
+| `'take'` | 0.85~0.95 | 노스윙 |
+| null | eye 기반 | 카운트·상황 기반 |
+| `'home_run'` | 낮음 | 높음 (85~100) |
+| `'deep_fly_*'` | 낮음 | 중~높음 (65~85) |
+| `'line_drive_*'` | 중간 | 중간 (55~75) |
+| `'grounder_*'` | 중간 | 중간 (45~65) |
+| `'bloop_*'` | 낮음 | 낮~중간 (25~50) |
+| `'sharp_bunt'` | 낮음 | 낮음 (20~35) |
+| `'soft_bunt'` | 낮음 | 낮음 (15~30) |
 
 **구현 상태:** ⬜
 
@@ -893,73 +954,90 @@ clamp(0, 100)
 
 ### 4-7. ⑤ 타구 퀄리티 생성
 
-스윙이 발생했을 때, 얼마나 잘 맞았는지를 quality(0~100)로 산출한다.
+스윙 레벨에 따라 스윙 유형을 결정하고, 타구가 발생하면 quality(0~100)를 산출한다.
 
-**기본 퀄리티:**
-
-```
-// contact 능력치 선택 (투수 투구팔 방향 기반)
-effectiveContact = pitcherIsLeft ? contact_l : contact_r
-contactNorm = norm(effectiveContact)   // 20-80 → 0.0~1.0
-
-baseQuality = contactNorm * 60 + 40   // 접촉 기반 기준선
-```
-
-**스윙 레벨 적합도 페널티:**
+**스윙 유형 결정:**
 
 ```
-// 스윙 레벨이 공에 맞지 않으면 컨택 불리
-// 풀스윙으로 변화구를 잡으면 헛스윙 or 팝업
+스윙 레벨에 따라 스윙의 성격이 결정된다.
 
-swingMismatch = |swingLevel - optimalSwingLevel(pitchType)|
-// 포심·커터 등 빠른 공: optimalSwingLevel ≈ 70~85
-// 체인지업·커브 등 느린 공: optimalSwingLevel ≈ 45~60
-
-mismatchPenalty = swingMismatch * 0.4   // 최대 약 40점 감점
+  swingLevel = 0          → 노스윙
+  swingLevel 1 ~ 20       → 체크 스윙
+  swingLevel 21 ~ 45      → 뒤늦은 스윙
+  swingLevel 46 ~ 75      → 일반 스윙
+  swingLevel 76 ~ 100     → 자신감 있는 스윙 (풀스윙에 가까울수록 파워 증가)
 ```
 
-**위치 판단 오차 페널티:**
+**스윙 유형별 가능한 결과:**
 
 ```
-// 실제 공 위치(pitchLocation)와 판단한 위치(judgedLocation)의 거리
+노스윙
+  → 타구 없음
+
+체크 스윙
+  → 노스윙 (배트 멈춤)
+  → 헛스윙
+  → 컨택 불리 (quality 크게 감점 후 타구 발생)
+
+뒤늦은 스윙
+  → 헛스윙
+  → 컨택 불리 (quality 감점 후 타구 발생)
+
+일반 스윙 / 자신감 있는 스윙
+  → 헛스윙 (위치 괴리 클 경우)
+  → 타구 발생 → quality 산출
+```
+
+**헛스윙 판정:**
+
+```
+예측 위치(judgedLocation)와 실제 위치(pitchLocation)의 괴리가 클수록 헛스윙 확률 상승.
+
 locationError = distance(pitchLocation, judgedLocation)   // 존 단위
 
-locationPenalty = locationError * 15   // 0.5 존 오차 → 7.5점 감점
+whiffProb = locationError * whiffSensitivity
+  whiffSensitivity: contact 낮을수록, swingLevel 높을수록 민감
+  // 풀스윙으로 크게 벗어난 공 → 헛스윙 확률 급상승
 ```
 
-**상태 보정:**
+**타구 퀄리티 산출:**
 
 ```
-// 피로도: 피로할수록 컨택 능력 저하
-fatiguePenalty = physique < 40
-  ? (40 - physique) * 0.3   // 체력 30 → 약 3점 추가 감점
-  : 0
+기반 요소 (높을수록 quality 상승):
+  swingLevel            — 스윙 레벨이 높을수록 강한 타구 가능성 증가
+  위치 예측 정확도       — judgedLocation ≈ pitchLocation 일수록 유리
+  contact (좌/우투수)   — 상대 투수 투구팔 기준 effectiveContact 적용
+  투구 퀄리티 역수       — pitchQuality 낮을수록 타자에게 유리
 
-// 긴장도
-tensionMod = tensionModifier(tension)   // §2 YD 곡선 적용
-```
+계산:
 
-**최종 퀄리티:**
+  effectiveContact = pitcherIsLeft ? contact_l : contact_r
+  contactNorm      = norm(effectiveContact)   // 20-80 → 0.0~1.0
 
-```
-quality = baseQuality
-        - mismatchPenalty
-        - locationPenalty
-        - fatiguePenalty
-        + tensionMod * 5
+  locationBonus    = max(0, 1 - locationError) * 20  // 예측 정확할수록 최대 +20
+  pitchPenalty     = pitchQuality * 0.3              // 투구 퀄리티 높을수록 감점
 
-quality = clamp(quality + gaussian(0, 5), 0, 100)
+  baseQuality = contactNorm * 55 + swingLevel * 0.25 + locationBonus - pitchPenalty
+
+  // 스윙 유형 보정
+  체크 스윙 (swingLevel < 20):  baseQuality *= 0.35  // 땅볼 수준의 약한 타구
+  뒤늦은 스윙 (swingLevel < 45): baseQuality *= 0.65  // 컨택 불리
+
+  // 컨디션·긴장도 보정 (§2 참조)
+  quality = baseQuality × conditionMod × tensionMod
+
+  quality = clamp(quality + gaussian(0, 5), 0, 100)
 ```
 
 **퀄리티 구간:**
 
-| quality | 타구 유형 (경향) |
-|---------|----------------|
-| 0 ~ 14  | 파울 / 헛스윙 |
-| 15 ~ 34 | 약한 타구 (팝업·땅볼 위험) |
+| quality | 타구 경향 |
+|---------|----------|
+| 0 ~ 14  | 극히 약한 타구 (대부분 파울·팝업) |
+| 15 ~ 34 | 약한 타구 (팝업·내야 땅볼 위험) |
 | 35 ~ 59 | 보통 타구 |
 | 60 ~ 79 | 강한 타구 |
-| 80 ~ 100| 완벽한 타구 (라인드라이브·장타 지향) |
+| 80 ~ 100 | 완벽한 타구 (라인드라이브·장타 지향) |
 
 **구현 상태:** ⬜
 
@@ -967,27 +1045,53 @@ quality = clamp(quality + gaussian(0, 5), 0, 100)
 
 ### 4-8. ⑥ 타구 벡터 생성
 
-quality와 스윙 정보를 바탕으로 타구의 방향·발사각·속도를 결정한다.
+타구 퀄리티와 공의 타격 위치(contactPoint)로 초기 벡터를 결정하고,
+이후 스핀·바람·바운드 등 물리 법칙에 따라 타구가 운동한다.
 
 **출력 구조:**
 
 ```js
 {
-  exitVelo:    number,   // 타구 속도 (km/h)
-  launchAngle: number,   // 발사각 (degree, -10 ~ 90)
-  direction:   number,   // 방향 (degree, 0=3루선, 90=중앙, 180=1루선)
-  type:        string,   // 'line_drive' | 'grounder' | 'fly_ball' | 'popup' | 'foul'
+  exitVelo:    number,          // 타구 초기 속도 (km/h)
+  launchAngle: number,          // 발사각 (degree, -10 ~ 90)
+  direction:   number,          // 방향 (degree, 0=3루선, 90=중앙, 180=1루선)
+  spin:        { top, back, side },  // 스핀 성분
+  type:        string,          // 'grounder' | 'line_drive' | 'fly_ball' | 'popup' | 'foul'
 }
+```
+
+**공의 타격 위치 (contactPoint):**
+
+```
+타자가 공의 어느 부분을 맞추느냐에 따라 발사각·방향·스핀의 기본값이 결정된다.
+
+contactPoint = (cx, cy)   // 공 중심 기준 오프셋 (-1.0 ~ 1.0)
+
+  cy > 0  (공 윗부분)  → 탑스핀 → 낮은 발사각 → 땅볼 경향
+  cy ≈ 0  (공 중앙)   → 라인드라이브 경향
+  cy < 0  (공 아랫부분) → 백스핀 → 높은 발사각 → 뜬공·홈런 경향
+  cx > 0  (우타자 기준 공 안쪽) → 당겨치기 방향
+  cx < 0  (우타자 기준 공 바깥쪽) → 밀어치기 방향
+
+contactPoint 결정 요소:
+  투구 위치(pitchLocation)   — 기본 컨택 포인트 설정
+  targetBallResult           — 타자가 의도한 타격 위치
+  quality                    — 낮을수록 contactPoint 오차 증가
+                               (quality 높음 → 의도한 위치에 정확히 맞춤)
 ```
 
 **타구 속도 (exitVelo):**
 
 ```
-powerNorm = norm(power)   // 20-80 → 0.0~1.0
+// 속도는 Power 능력치가 주도하고, quality는 편차 범위를 담당한다.
 
-baseExitVelo = 90 + powerNorm * 50           // 90~140 km/h 범위
-swingBoost   = (swingLevel - 50) * 0.3       // 스윙 레벨 50 초과분만큼 가속
-qualityScale = quality / 100
+powerNorm    = norm(power)              // 20-80 → 0.0~1.0
+baseExitVelo = 90 + powerNorm * 50     // 90~140 km/h
+swingBoost   = (swingLevel - 50) * 0.3
+qualityScale = 0.55 + (quality / 100) * 0.45
+// quality=0   → × 0.55  (최저 55%)
+// quality=50  → × 0.775
+// quality=100 → × 1.0
 
 exitVelo = (baseExitVelo + swingBoost) * qualityScale
          + gaussian(0, 3)
@@ -997,49 +1101,58 @@ clamp(20, 175)
 **발사각 (launchAngle):**
 
 ```
-// 스윙 레벨: 높을수록 언더컷 → 발사각 상승
-swingAngleBias = (swingLevel - 50) * 0.25   // level 80 → +7.5°
-
-// 공 높이: 높은 공은 팝업, 낮은 공은 땅볼 경향
-pitchHeightBias = pitchLocation.y * 10      // y=1.0 → +10°, y=-1.0 → -10°
-
-// 타구 목표 보정 (targetBallResult)
-targetBias:
-  'home_run' / 'extra_base' → +12°
-  'line_drive'              → +5°   (낮고 강한 궤적)
-  'sacrifice_fly'           → +18°
-  'groundthrough'           → -10°
-
-baseLaunchAngle = 10 + swingAngleBias + pitchHeightBias + targetBias
-launchAngle = baseLaunchAngle
-            + (1 - quality / 100) * gaussian(0, 12)  // 퀄리티 낮을수록 예측 불가
+// contactPoint.cy 기반
+launchAngle = -cy * 45                              // cy=1 → -45°, cy=-1 → +45°
+            + (1 - quality / 100) * gaussian(0, 12) // 퀄리티 낮을수록 편차 증가
 clamp(-10, 90)
 ```
 
 **방향 (direction):**
 
 ```
-// 기준: 0° = 3루 파울선, 90° = 중앙, 180° = 1루 파울선
-// 오른손 타자 기준; 왼손 타자는 좌우 반전
+// 기준: 90° = 중앙(2루 방향), 0° = 3루 파울선, 180° = 1루 파울선 (우타자 기준)
+// 0° 미만 / 180° 초과 = 홈플레이트 뒤쪽 파울 영역
+// 왼손 타자는 좌우 반전
 
-공 위치 기반:
-  pitchLocation.x < -0.5 (몸쪽)  → 당겨치기 경향 (+15°~+30°)
-  pitchLocation.x > +0.5 (바깥쪽) → 밀어치기 경향 (-15°~-25°)
+direction = 90 - cx * 30                            // cx=1(당겨치기) → 60°, cx=-1(밀어치기) → 120°
+          + (1 - quality / 100) * gaussian(0, 15)
+// 범위 제한 없음 — 뒤로 빠지는 파울팁·백스크린 팝업도 표현 가능
+// 타구 처리(§5)에서 direction < 0 or > 180 → 파울 뒤쪽으로 처리
+```
 
-작전 보정:
-  opposite_field → 반대방향 보정 -20°
-  pull_side      → 당겨치기 보정 +20°
+**스핀 (spin):**
 
-baseDirection = 90 + pitchBias + tacticBias
-direction = baseDirection + (1 - quality / 100) * gaussian(0, 15)
-clamp(5, 175)   // 파울라인 안쪽 유지
+```
+// 타격 위치에 따라 결정. 타구가 날아가면서 휘어지는 방향을 주로 결정한다.
+
+sidespin ∝ cx  — 타구가 진행 방향으로 휘어짐 (당겨친 타구는 파울선 쪽으로 훅)
+topspin  ∝ cy > 0  — 수직 하강 가속 (바운드 짧고 낮음)
+backspin ∝ cy < 0  — 수직 체공 유지 (외야 깊이 진행)
+
+// 예: 강하게 당겨친 타구 → sidespin → 비행 중 더 당겨지는 방향으로 휨
+//     밀어친 타구 → 반대 방향 sidespin → 반대 방향으로 휨
+```
+
+**타구 물리 운동:**
+
+```
+초기 벡터(exitVelo, launchAngle, direction, spin)를 기반으로
+타구는 아래 물리 요소에 따라 운동한다.
+
+  스핀    — 타구가 비행 중 휘어지는 방향 결정 (sidespin → 훅/슬라이스, topspin/backspin → 수직 궤적)
+  바람    — 방향·세기에 따라 뜬공·외야 타구 궤적 보정
+  바운드  — 땅에 닿는 각도·속도에 따라 첫 바운드 높이·방향 결정
+            (경기장 표면: 잔디·흙·습도 등 반영)
+  중력    — 표준 물리 법칙 적용
 ```
 
 **타구 유형 분류:**
 
 ```
-if quality < 15:
-  type = 'foul'
+if direction < 0 or direction > 180:
+  type = 'foul_back'    // 홈플레이트 뒤쪽 파울
+elif direction < 5 or direction > 175:
+  type = 'foul'         // 파울라인 바깥 파울
 elif launchAngle < 10:
   type = 'grounder'
 elif launchAngle < 25:
@@ -1048,8 +1161,6 @@ elif launchAngle < 50:
   type = 'fly_ball'
 else:
   type = 'popup'
-
-// 파울라인 벗어남(direction < 5 or > 175)도 foul로 처리
 ```
 
 **타격 결과 → §5 타구 처리로 전달:**
@@ -1059,8 +1170,8 @@ else:
   exitVelo,
   launchAngle,
   direction,
+  spin,
   type,
-  // 추가 메타
   batter: { speed, ... },
   quality,
 }

@@ -12,9 +12,8 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 16px;
-  width: 960px;
-  max-width: 98vw;
-  max-height: 94vh;
+  width: min(1560px, 98vw);
+  max-height: 97vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -63,7 +62,7 @@
 
 /* ── 왼쪽: 선수 선택 패널 ── */
 .sidePanel {
-  width: 180px;
+  width: 160px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -144,7 +143,7 @@
 .ptBadgePct  { color: var(--text2); min-width: 26px; text-align: right; }
 .ptBadgeVelo { color: var(--text2); min-width: 32px; text-align: right; }
 
-/* ── 가운데: 존 ── */
+/* ── 가운데: 존 + 필드 ── */
 .zoneWrap {
   flex: 0 0 auto;
   display: flex;
@@ -153,6 +152,7 @@
   padding: 12px 16px 12px;
   gap: 8px;
   border-right: 1px solid var(--border);
+  overflow-y: auto;
 }
 
 .zoneSvg {
@@ -176,7 +176,30 @@
 }
 .legendDot { width: 7px; height: 7px; border-radius: 50%; }
 
-/* ── 오른쪽: 정보 패널 ── */
+/* ── 메커니즘 패널 (3번째 컬럼) ── */
+.mechPanel {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+/* ── 경기 기록 패널 (4번째 컬럼) ── */
+.logPanel {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow: hidden;
+}
+
+/* ── 오른쪽: 정보 패널 (legacy) ── */
 .infoPanel {
   flex: 1;
   min-width: 0;
@@ -346,3 +369,138 @@
 .logRow:nth-child(odd) { background: #ffffff06; }
 .logNum  { color: var(--text2); min-width: 18px; text-align: right; }
 .logVelo { color: var(--text2); min-width: 36px; text-align: right; font-size: 10px; }
+
+/* ── 능력치 컴팩트 ── */
+.evalCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.evalCompactSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.evalCompactTitle {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text2);
+  min-width: 24px;
+}
+.evalCompactItem {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+}
+.evalCompactLabel {
+  color: var(--text2);
+  font-size: 10px;
+}
+
+/* ── 컨트롤 행 ── */
+.controlRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btnRow {
+  display: flex;
+  gap: 6px;
+}
+.btnRow .pitchBtn {
+  flex: 1;
+}
+.btnRow .resetBtn {
+  flex: 0 0 60px;
+}
+
+/* ── 메커니즘 카드 ── */
+.mechCard {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #1e3a5a;
+  background: #0d1e2e;
+}
+.mechRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mechStep {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1a3050;
+  color: #42A5F5;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.mechLabel {
+  color: #8892b0;
+  min-width: 40px;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.mechValue {
+  color: #ccd6f6;
+  flex: 1;
+  min-width: 0;
+}
+.mechSub {
+  color: #5a6a7a;
+  font-size: 10px;
+}
+.mechOffset {
+  color: #FFA726;
+  font-size: 10px;
+}
+.mechStateRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 3px 0 5px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid #1a3050;
+}
+.mechStateBadge {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ── 필드 뷰 ── */
+.fieldCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.fieldSvg {
+  border-radius: 8px;
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.fieldLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+}
