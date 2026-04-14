@@ -25,13 +25,14 @@ import {
 export { BATTED_BALL_LABELS };
 
 export class BattingSimulator {
-  constructor(profile) {
-    this.contact_l = profile.contact_l ?? 50;
-    this.contact_r = profile.contact_r ?? 50;
-    this.power     = profile.power     ?? 50;
-    this.eye       = profile.eye       ?? 50;
-    this.speed     = profile.speed     ?? 50;
-    this.bunt      = profile.bunt      ?? 50;
+  constructor(profile, stadiumKey = 'jamsil') {
+    this.contact_l  = profile.contact_l ?? 50;
+    this.contact_r  = profile.contact_r ?? 50;
+    this.power      = profile.power     ?? 50;
+    this.eye        = profile.eye       ?? 50;
+    this.speed      = profile.speed     ?? 50;
+    this.bunt       = profile.bunt      ?? 50;
+    this.stadiumKey = stadiumKey;
 
     this._initGameState(profile.fatigue ?? 0);
     this.atBatHistory = [];
@@ -75,7 +76,14 @@ export class BattingSimulator {
    * @param {Object} count       — { balls, strikes }
    * @param {string} pitcherHand — 'L' | 'R'
    */
-  simulate(pitch, count = { balls: 0, strikes: 0 }, pitcherHand = 'R') {
+  /**
+   * @param {Object}   pitch           — PitchSimulator.simulate() 결과
+   * @param {Object}   count           — { balls, strikes }
+   * @param {string}   pitcherHand     — 'L' | 'R'
+   * @param {string[]} knownPitchTypes — 상대 투수의 알려진 구종 목록 (레퍼토리)
+   *                                     PitchSimulator.pitchTypes.map(p => p.type) 로 전달
+   */
+  simulate(pitch, count = { balls: 0, strikes: 0 }, pitcherHand = 'R', knownPitchTypes = []) {
     if (!pitch.isNormal || !pitch.location) {
       return { action: 'none', description: '비정상 투구' };
     }
@@ -94,10 +102,20 @@ export class BattingSimulator {
     };
 
     // ── ② 타격 계획 ──────────────────────────────────────────
-    const plan = generateBattingPlan(count, pitchType, pitchQuality, batterState);
+    // 이번 타석에서 이전에 본 투구 기록 (실제 구종 + 예측 정확도)
+    // generateBattingPlan은 실제 pitchType을 받지 않음 — 히스토리 기반으로만 예측
+    const pitchHistory = this.atBatHistory
+      .filter(r => r.judgment?.actualPitchType)
+      .map(r => ({
+        actualPitchType:    r.judgment.actualPitchType,
+        predictedPitchType: r.plan?.predictedPitchType ?? null,
+        predictedCorrect:   r.judgment?.predictedCorrect ?? false,
+      }));
+
+    const plan = generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes);
 
     // ── ③ 투구 판단 ──────────────────────────────────────────
-    const judgment = judgePitch(pitch, plan, batterState);
+    const judgment = judgePitch(pitch, plan, batterState, knownPitchTypes);
 
     // ── ④ 스윙 여부 결정 ─────────────────────────────────────
     const overlap = calcOverlap(judgment.judgedLocation);
@@ -178,7 +196,7 @@ export class BattingSimulator {
       calcContactQuality(swingLevel, swingType, locationError, pitchQuality, contact, batterState);
 
     // ── ⑦ 타구 벡터 생성 ─────────────────────────────────────
-    const battingVec = calcBattingVector(quality, swingLevel, pitch, this.power, batterState);
+    const battingVec = calcBattingVector(quality, swingLevel, pitch, this.power, batterState, this.stadiumKey);
 
     return {
       action: 'swing', result: 'contact',

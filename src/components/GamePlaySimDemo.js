@@ -32,14 +32,15 @@ function fieldPos(direction, distM) {
   const angRad = ((direction - 90) / 2) * Math.PI / 180;
   return { fx: FHX + distM * FS * Math.sin(angRad), fy: FHY - distM * FS * Math.cos(angRad) };
 }
-function estDistance(bat) {
+function calcLandingDist(bat) {
   if (!bat || bat.action !== 'swing' || bat.result !== 'contact') return null;
   const t = bat.type;
-  if (t === 'foul' || t === 'foul_back') return null;
   const v = bat.exitVelo / 3.6;
-  const rad = bat.launchAngle * Math.PI / 180;
-  if (t === 'grounder') return Math.min(95, 15 + v * 1.4);
-  if (t === 'popup')    return Math.min(50, 10 + v * 0.6);
+  const rad = (bat.launchAngle || 0) * Math.PI / 180;
+  if (t === 'grounder')  return Math.min(95, 15 + v * 1.4);
+  if (t === 'popup')     return Math.min(50, 10 + v * 0.6);
+  if (t === 'foul')      return Math.min(60, 8 + v * 0.9);
+  if (t === 'foul_back') return Math.min(20, 4 + v * 0.4);
   return Math.min(160, Math.max(20, v * v * Math.sin(2 * rad) / 9.8 * 0.62));
 }
 
@@ -236,16 +237,111 @@ function GameLog({ log }) {
 
 // ── 서브 컴포넌트: 야구장 필드 ──────────────────────────────────
 function FieldView({ battedBalls, lastBatting }) {
+  const [ballPos, setBallPos] = useState(null);
+  const rafRef      = useRef(null);
+  const startRef    = useRef(null);
+  const phaseRef    = useRef('idle'); // 'flight' | 'rolling'
+  const rollTimeRef = useRef(null);
+
+  useEffect(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    phaseRef.current = 'idle';
+    rollTimeRef.current = null;
+
+    if (!lastBatting || lastBatting.result !== 'contact') { setBallPos(null); return; }
+    const dist = calcLandingDist(lastBatting);
+    if (!dist) { setBallPos(null); return; }
+
+    const isGrounder = lastBatting.type === 'grounder';
+
+    let toX, toY;
+    if (lastBatting.type === 'foul_back') {
+      toX = FHX; toY = FHY + 14;
+    } else {
+      const p = fieldPos(lastBatting.direction, dist);
+      toX = p.fx; toY = p.fy;
+    }
+
+    const arcH = lastBatting.type === 'home_run'  ? 85
+               : lastBatting.type === 'deep_fly'   ? 65
+               : lastBatting.type === 'fly_ball'   ? 50
+               : lastBatting.type === 'popup'      ? 40
+               : lastBatting.type === 'line_drive' ? 20
+               : lastBatting.type === 'foul'       ? 25
+               : lastBatting.type === 'foul_back'  ? 10
+               : 4; // grounder — 낮은 바운드
+
+    const midX = (FHX + toX) / 2;
+    const midY = (FHY + toY) / 2 - arcH;
+    const FLIGHT_DUR = isGrounder ? 380 : 700;
+
+    // 굴러가는 방향 단위벡터 (타구 방향과 동일)
+    const dx = toX - FHX;
+    const dy = toY - FHY;
+    const mag = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / mag;
+    const uy = dy / mag;
+    const ROLL_EXTRA = 50; // SVG px 추가 구름 거리
+    const ROLL_DUR   = 2800;
+
+    startRef.current = null;
+    phaseRef.current = 'flight';
+
+    const animate = (now) => {
+      if (!startRef.current) startRef.current = now;
+
+      if (phaseRef.current === 'flight') {
+        const t   = Math.min((now - startRef.current) / FLIGHT_DUR, 1);
+        const inv = 1 - t;
+        const cx  = inv * inv * FHX + 2 * inv * t * midX + t * t * toX;
+        const cy  = inv * inv * FHY + 2 * inv * t * midY + t * t * toY;
+        setBallPos({ cx, cy });
+
+        if (t < 1) {
+          rafRef.current = requestAnimationFrame(animate);
+        } else if (isGrounder) {
+          // 첫 바운드 후 구름 페이즈 시작
+          phaseRef.current = 'rolling';
+          rollTimeRef.current = now;
+          rafRef.current = requestAnimationFrame(animate);
+        } else {
+          rafRef.current = null;
+          // 비땅볼: 착지점에서 0.5초 후 사라짐
+          setTimeout(() => setBallPos(null), 500);
+        }
+      } else {
+        // 구름 페이즈: quadratic ease-out 감속
+        const rollT    = Math.min((now - rollTimeRef.current) / ROLL_DUR, 1);
+        const progress = 1 - Math.pow(1 - rollT, 2);
+        setBallPos({ cx: toX + ux * ROLL_EXTRA * progress, cy: toY + uy * ROLL_EXTRA * progress });
+
+        if (rollT < 1) {
+          rafRef.current = requestAnimationFrame(animate);
+        } else {
+          rafRef.current = null;
+          // 수비수 픽업 전까지 공 위치 유지 (사라지지 않음)
+        }
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(animate);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [lastBatting]);
+
   const lastBall = useMemo(() => {
     if (!lastBatting) return null;
-    const dist = estDistance(lastBatting);
+    const dist = calcLandingDist(lastBatting);
     if (!dist) return null;
+    if (lastBatting.type === 'foul_back') {
+      return { fx: FHX, fy: FHY + 14, type: lastBatting.type, dist };
+    }
     return { ...fieldPos(lastBatting.direction, dist), type: lastBatting.type, dist };
   }, [lastBatting]);
 
   return (
     <svg viewBox={`0 0 ${FIELD_W} ${FIELD_H}`} width={FIELD_W} height={FIELD_H} style={{ borderRadius: 8, display: 'block' }}>
       <rect x={0} y={0} width={FIELD_W} height={FIELD_H} fill="#0a0e14" rx={8} />
+      {/* Fair territory fan */}
       <path d={`M ${FHX},${FHY} L ${FL3.fx},${FL3.fy} A ${WALL_R},${WALL_R} 0 0,1 ${FL1.fx},${FL1.fy} Z`} fill="#0d1f0d" />
       <circle cx={FHX} cy={FHY - 38 * FS} r={28 * FS} fill="#1a1408" opacity={0.6} />
       <path d={`M ${FL3.fx},${FL3.fy} A ${WALL_R},${WALL_R} 0 0,1 ${FL1.fx},${FL1.fy}`} fill="none" stroke="#3a5068" strokeWidth={1.5} strokeDasharray="5 3" />
@@ -267,21 +363,210 @@ function FieldView({ battedBalls, lastBatting }) {
           </g>
         );
       })}
+      {/* Previous balls (history dots) */}
       {battedBalls.slice(1, 20).map((b, i) => (
         <circle key={i} cx={b.fx} cy={b.fy} r={3.5} fill={BATTED_BALL_COLORS[b.type] || '#888'} opacity={Math.max(0.06, 0.30 - i * 0.015)} />
       ))}
+      {/* Landing marker */}
       {lastBall && (
         <g>
-          <circle cx={lastBall.fx} cy={lastBall.fy} r={7} fill="none" stroke={BATTED_BALL_COLORS[lastBall.type] || '#fff'} strokeWidth={1.8} opacity={0.6} />
+          <circle cx={lastBall.fx} cy={lastBall.fy} r={7} fill="none" stroke="#ffffff" strokeWidth={1.8} opacity={0.5} />
           <circle cx={lastBall.fx} cy={lastBall.fy} r={4.5} fill={BATTED_BALL_COLORS[lastBall.type] || '#fff'} stroke="#fff" strokeWidth={1} />
           <text x={lastBall.fx} y={lastBall.fy - 10} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700}>{BATTED_BALL_LABELS[lastBall.type] || ''}</text>
           <text x={lastBall.fx} y={lastBall.fy + 15} textAnchor="middle" fill="#8892b0" fontSize={7}>{Math.round(lastBall.dist)}m</text>
         </g>
       )}
+      {/* Ball flight / roll animation — 항상 흰색 */}
+      {ballPos && (
+        <circle cx={ballPos.cx} cy={ballPos.cy} r={5} fill="#ffffff" opacity={0.92} stroke="#cccccc" strokeWidth={0.8} />
+      )}
       <text x={FL3.fx - 3} y={FL3.fy + 12} textAnchor="end" fill="#4a5a6a" fontSize={8}>LF</text>
       <text x={FHX} y={FHY - WALL_R - 4} textAnchor="middle" fill="#4a5a6a" fontSize={8}>CF</text>
       <text x={FL1.fx + 3} y={FL1.fy + 12} textAnchor="start" fill="#4a5a6a" fontSize={8}>RF</text>
     </svg>
+  );
+}
+
+// ── 서브 컴포넌트: 단계별 알고리즘 디버그 패널 ──────────────────────
+function NarrativeBar({ pitchSrc, batSrc, pitchReveal, batReveal }) {
+  if (!pitchSrc && !batSrc) return null;
+
+  const PT = PITCH_TYPE_LABELS;
+  const BL = BATTED_BALL_LABELS;
+
+  // 단계 행 렌더
+  const Step = ({ tag, tagColor, children }) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 0', borderBottom: '1px solid #0e1824' }}>
+      <span style={{
+        fontSize: 9, fontWeight: 800, color: tagColor,
+        background: `${tagColor}22`, border: `1px solid ${tagColor}44`,
+        borderRadius: 4, padding: '1px 5px', flexShrink: 0, letterSpacing: '0.05em',
+      }}>{tag}</span>
+      <span style={{ fontSize: 11, color: '#ccd6f6', lineHeight: 1.6, flexWrap: 'wrap', display: 'flex', gap: '0 6px', alignItems: 'baseline' }}>
+        {children}
+      </span>
+    </div>
+  );
+  const Kv = ({ k, v, vc }) => (
+    <span><span style={{ color: '#4a6a8a', fontSize: 10 }}>{k} </span><b style={{ color: vc || '#ccd6f6' }}>{v}</b></span>
+  );
+  const Sep = () => <span style={{ color: '#2a3a50' }}>·</span>;
+
+  const steps = [];
+
+  // ① 투수 계획
+  if (pitchReveal.plan && pitchSrc?.plan) {
+    const p = pitchSrc.plan;
+    const pColor = PITCH_COLORS[pitchSrc.pitchType] || '#ccc';
+    steps.push(
+      <Step key="p-plan" tag="투수 계획" tagColor="#4a8aaa">
+        <Kv k="구종" v={PT[pitchSrc.pitchType] || pitchSrc.pitchType} vc={pColor} />
+        <Sep/>
+        <Kv k="목표구속" v={`${p.targetVelo}km`} />
+        {p.locationZone && <><Sep/><Kv k="목표존" v={p.locationZone} /></>}
+        {p.reasoning?.slice(0, 2).map((r, i) => <><Sep/><span key={i} style={{ color: '#4a6a7a', fontSize: 10 }}>{r}</span></>)}
+      </Step>
+    );
+  }
+
+  // ② 투수 실행 + 판정
+  if (pitchReveal.exec && pitchSrc?.pitchQuality != null) {
+    const q = pitchSrc.pitchQuality;
+    const qColor = q >= 70 ? '#66BB6A' : q >= 40 ? '#FFCA28' : '#EF5350';
+    const r = pitchSrc.result || pitchSrc.type;
+    steps.push(
+      <Step key="p-exec" tag="투수 실행" tagColor="#3a7090">
+        <Kv k="실제구속" v={`${pitchSrc.velocity}km/h`} />
+        <Sep/>
+        <Kv k="퀄리티" v={q} vc={qColor} />
+        {pitchSrc.qualityDetail?.isMistake && <><Sep/><span style={{ color: '#EF5350', fontWeight: 700 }}>실수!</span></>}
+        {pitchSrc.location && <><Sep/><Kv k="착점" v={`(${pitchSrc.location.x?.toFixed(2)}, ${pitchSrc.location.y?.toFixed(2)})`} /></>}
+        {pitchReveal.judge && <><Sep/><Kv k="판정" v={resultLabel(r)} vc={resultColor(r)} /></>}
+      </Step>
+    );
+  }
+
+  // ③ 타자 계획
+  if (batReveal.plan && batSrc?.plan) {
+    const bp = batSrc.plan;
+    const tacticLabel = bp.tactic === 'take' ? '테이크' : bp.tactic === 'contact' ? '컨택' : '풀스윙';
+    const tacticColor = bp.tactic === 'take' ? '#546E7A' : bp.tactic === 'contact' ? '#42A5F5' : '#AB47BC';
+    const biasStr = bp.biasStrength != null ? `${bp.biasStrength > 0 ? '+' : ''}${Math.round(bp.biasStrength * 100)}%` : null;
+    steps.push(
+      <Step key="b-plan" tag="타자 계획" tagColor="#8a4aaa">
+        <Kv k="전략" v={tacticLabel} vc={tacticColor} />
+        <Sep/>
+        <Kv k="예측구종" v={bp.predictedPitchType ? (PT[bp.predictedPitchType] || bp.predictedPitchType) : '없음'} vc={bp.predictedPitchType ? (PITCH_COLORS[bp.predictedPitchType] || '#ccc') : '#546E7A'} />
+        {biasStr && <><Sep/><Kv k="예측신뢰도" v={biasStr} vc={parseFloat(biasStr) >= 0 ? '#66BB6A' : '#EF5350'} /></>}
+        <Sep/>
+        <Kv k="목표스윙Lv" v={bp.targetSwingLevel} />
+        {bp.targetBallResult && <><Sep/><Kv k="목표타구" v={bp.targetBallResult} /></>}
+      </Step>
+    );
+  }
+
+  // ④ 타자 판단
+  if (batReveal.judgment && batSrc?.judgment) {
+    const j = batSrc.judgment;
+    const jtColor = j.judgmentType === 'bias_confirmed' ? '#66BB6A'
+                  : j.judgmentType === 'accurate_neutral' ? '#81C784'
+                  : j.judgmentType === 'bias_interfered'  ? '#FFA726'
+                  : j.judgmentType === 'category_confused' ? '#EF5350'
+                  : '#90A4AE';
+    const jtLabel = j.judgmentType === 'bias_confirmed'  ? '선입견강화'
+                  : j.judgmentType === 'accurate_neutral' ? '정확판단'
+                  : j.judgmentType === 'neutral'          ? '중립'
+                  : j.judgmentType === 'bias_interfered'  ? '선입견방해'
+                  : '계열혼동';
+    steps.push(
+      <Step key="b-judge" tag="타자 판단" tagColor="#aa7a2a">
+        <Kv k="실제구종" v={PT[j.actualPitchType] || j.actualPitchType || '-'} vc={PITCH_COLORS[j.actualPitchType] || '#ccc'} />
+        <Sep/>
+        <Kv k="인식구종" v={PT[j.judgedPitchType] || j.judgedPitchType || '-'} vc={j.judgedPitchType !== j.actualPitchType ? '#FFA726' : '#ccd6f6'} />
+        <Sep/>
+        <Kv k="판단" v={jtLabel} vc={jtColor} />
+        <Sep/>
+        <Kv k="swingMod" v={`×${j.swingMod}`} vc={j.swingMod >= 1.05 ? '#66BB6A' : j.swingMod <= 0.75 ? '#EF5350' : '#FFA726'} />
+        <Sep/>
+        <Kv k="예측적중" v={j.predictedCorrect ? '✓' : '✗'} vc={j.predictedCorrect ? '#66BB6A' : '#EF5350'} />
+        {j.locationBias !== 0 && <><Sep/><Kv k="위치편향" v={j.locationBias > 0 ? `+${j.locationBias}` : j.locationBias} vc={j.locationBias > 0.05 ? '#FFA726' : '#8892b0'} /></>}
+      </Step>
+    );
+  }
+
+  // ⑤ 스윙 결정
+  if (batReveal.judgment && batSrc?.overlap != null) {
+    const didSwing = batSrc.action === 'swing';
+    steps.push(
+      <Step key="b-swing" tag="스윙 결정" tagColor="#2a7aaa">
+        <Kv k="오버랩" v={batSrc.overlap} vc="#42A5F5" />
+        <Sep/>
+        <Kv k="기준" v={batSrc.threshold} />
+        <Sep/>
+        <span style={{ fontWeight: 700, color: didSwing ? '#66BB6A' : '#546E7A' }}>{didSwing ? '▶ 스윙' : '— 노스윙'}</span>
+        {didSwing && batSrc.swingLevel != null && <>
+          <Sep/>
+          <Kv k="스윙Lv" v={batSrc.swingLevel} vc="#42A5F5" />
+          <Sep/>
+          <Kv k="타입" v={swingTypeLabel(batSrc.swingType)} vc="#ccd6f6" />
+        </>}
+      </Step>
+    );
+  }
+
+  // ⑥ 결과
+  if (batReveal.result && batSrc) {
+    let resultContent;
+    if (batSrc.action === 'take') {
+      resultContent = <span style={{ color: '#546E7A', fontWeight: 600 }}>노스윙 (볼데드)</span>;
+    } else if (batSrc.result === 'whiff') {
+      resultContent = <>
+        <span style={{ color: '#EF5350', fontWeight: 700 }}>헛스윙</span>
+        <Sep/>
+        <Kv k="헛스윙확률" v={`${Math.round((batSrc.whiffProb ?? 0) * 100)}%`} vc="#EF5350" />
+        <Sep/>
+        <Kv k="위치오차" v={batSrc.locationError} />
+      </>;
+    } else if (batSrc.result === 'contact') {
+      const t = batSrc.type;
+      const isFoul = t === 'foul' || t === 'foul_back';
+      resultContent = <>
+        <Kv k="타구" v={BL[t] || t} vc={BATTED_BALL_COLORS[t] || '#90A4AE'} />
+        <Sep/>
+        <Kv k="컨택퀄리티" v={batSrc.quality} vc={batSrc.quality >= 60 ? '#66BB6A' : batSrc.quality >= 35 ? '#FFCA28' : '#EF5350'} />
+        {!isFoul && <>
+          <Sep/><Kv k="타구속도" v={`${batSrc.exitVelo}km/h`} />
+          <Sep/><Kv k="발사각" v={`${batSrc.launchAngle}°`} />
+          <Sep/><Kv k="방향" v={`${batSrc.direction}°`} />
+          {batSrc.estDist && <><Sep/><Kv k="거리" v={`${batSrc.estDist}m`} vc="#FFA726" /></>}
+        </>}
+      </>;
+    }
+    if (resultContent) {
+      steps.push(<Step key="b-result" tag="결과" tagColor="#2a9a4a">{resultContent}</Step>);
+    }
+  }
+
+  // 빈 행 채우기 (6개 고정)
+  const TOTAL_ROWS = 6;
+  while (steps.length < TOTAL_ROWS) {
+    steps.push(
+      <div key={`empty-${steps.length}`} style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '2px 0', borderBottom: '1px solid #0e1824', minHeight: 22,
+      }}>
+        <span style={{ fontSize: 9, color: '#1e2a3a', padding: '1px 5px' }}>—</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      borderTop: '2px solid #1e2a3a', background: '#060a10',
+      padding: '4px 20px 4px', flexShrink: 0,
+    }}>
+      {steps}
+    </div>
   );
 }
 
@@ -328,12 +613,16 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
   const [lastBatting, setLastBatting] = useState(null);
   const [pitchLog, setPitchLog]   = useState([]);
 
-  // 순차 애니메이션
-  const [animStep, setAnimStep]         = useState(null);
+  // 단계별 실행 상태
+  // null → 'p_plan' → 'b_plan' → 'pitching' → 'judging' → 'batting' → 'done'
+  const [simStep, setSimStep]           = useState(null);
   const [pendingPitch, setPendingPitch] = useState(null);
   const [pendingBat,   setPendingBat]   = useState(null);
   const [arrivedPitch, setArrivedPitch] = useState(null);
-  const isAnimating = animStep !== null && animStep !== 'done';
+  const gsRef = useRef(null);
+  useEffect(() => { gsRef.current = gs; }, [gs]);
+  const feedbackRef = useRef(null);
+  useEffect(() => { feedbackRef.current = feedback; }, [feedback]);
 
   // 타석 상태: 볼/스트라이크 누적 (gs.count 와 별개로 실시간 관리)
   const countRef = useRef({ balls: 0, strikes: 0 });
@@ -371,63 +660,85 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
     }
   }, []);
 
-  // ── 투구 실행 ─────────────────────────────────────────────────
-  const throwPitch = useCallback(() => {
-    if (!simReady || isAnimating) return;
-    const curGs      = gs;
-    const pitcherSim = getCurrentPitcherSim(curGs);
-    if (!pitcherSim) return;
-    const count  = { ...countRef.current };
-    const batter = getCurrentBatter(curGs);
+  // ── 단계별 실행 ───────────────────────────────────────────────
+  const advanceStep = useCallback(() => {
+    if (!simReady || gs.isGameOver) return;
 
-    // 타자 시뮬레이터 준비
-    if (!batRef.current || batRef.current._batterId !== batter.id) {
-      batRef.current = new BattingSimulator({ ...batter });
-      batRef.current._batterId = batter.id;
+    // ① 투구 계획 수립: 모든 시뮬레이션을 계산하고 투수 계획만 공개
+    if (simStep === null || simStep === 'done') {
+      const curGs      = gsRef.current;
+      const pitcherSim = getCurrentPitcherSim(curGs);
+      if (!pitcherSim) return;
+      const count  = { ...countRef.current };
+      const batter = getCurrentBatter(curGs);
+
+      if (!batRef.current || batRef.current._batterId !== batter.id) {
+        batRef.current = new BattingSimulator({ ...batter });
+        batRef.current._batterId = batter.id;
+      }
+
+      const pitchResult = pitcherSim.simulate(count, { outs: curGs.outs }, feedbackRef.current);
+      let batResult = null;
+      if (pitchResult.isNormal && pitchResult.location) {
+        const knownPitchTypes = pitcherSim.pitchTypes?.map(p => p.type) ?? [];
+        batResult = batRef.current.simulate(pitchResult, count, 'R', knownPitchTypes);
+      }
+
+      setPendingPitch(pitchResult);
+      setPendingBat(batResult);
+      setArrivedPitch(null);
+      setLastBatting(null);
+      setSimStep('p_plan');
+      return;
     }
 
-    // 투구 + 타격 즉시 계산 (애니메이션 전)
-    const pitchResult = pitcherSim.simulate(count, { outs: curGs.outs }, feedback);
-    let batResult = null;
-    if (pitchResult.isNormal && pitchResult.location) {
-      batResult = batRef.current.simulate(pitchResult, count);
+    // ② 타자 계획 수립
+    if (simStep === 'p_plan') { setSimStep('b_plan'); return; }
+
+    // ③ 투구 실행
+    if (simStep === 'b_plan') {
+      setArrivedPitch(pendingPitch);
+      setLastResult(pendingPitch);
+      setFeedback(pendingPitch?.feedback ?? null);
+      setSimStep('pitching');
+      return;
     }
 
-    // planning: 투구 계획 + 타격 계획 동시 표시
-    setAnimStep('planning');
-    setLastBatting(null);
-    setPendingPitch(pitchResult);
-    setPendingBat(batResult);
-    setArrivedPitch(null);
+    // ④ 타자 투구 판단
+    if (simStep === 'pitching') { setSimStep('judging'); return; }
 
-    setTimeout(() => {
-      // pitching: 공 도달 + 타격 판단 표시
-      setAnimStep('pitching');
-      setArrivedPitch(pitchResult);
-      setLastResult(pitchResult);
-      setFeedback(pitchResult.feedback);
+    // ⑤ 타격 실행 (스윙 or 테이크 + 볼 애니메이션 시작)
+    if (simStep === 'judging') {
+      setLastBatting(pendingBat);
+      setSimStep('batting');
+      return;
+    }
 
-      setTimeout(() => {
-        // done: 최종 결과 반영
-        if (pitchResult.isNormal) pitcherSim.applyBattingFeedback(pitchResult, batResult);
-        if (batResult) batRef.current?.applyBallDeadFeedback(batResult);
+    // ⑥ 결과 확인: 게임 상태 갱신
+    if (simStep === 'batting') {
+      const curGs  = gsRef.current;
+      const batter = getCurrentBatter(curGs);
+      const pitcherSim = getCurrentPitcherSim(curGs);
 
-        setLastBatting(batResult);
-        setPendingBat(null);
-        setPitchLog(prev => [{ ...pitchResult, batting: batResult }, ...prev]);
-        setAnimStep('done');
+      if (pendingPitch?.isNormal) pitcherSim?.applyBattingFeedback(pendingPitch, pendingBat);
+      if (pendingBat) batRef.current?.applyBallDeadFeedback(pendingBat);
 
-        const nextGs = updateGameState(curGs, pitchResult, batResult, batter.name);
-        countRef.current = { ...nextGs.count };
-        setGs(nextGs);
+      setPitchLog(prev => [{ ...pendingPitch, batting: pendingBat }, ...prev]);
+      setPendingBat(null);
 
-        if (nextGs.lineupIdx[getAttackingSide(nextGs)] !== curGs.lineupIdx[getAttackingSide(curGs)] ||
-            nextGs.topBottom !== curGs.topBottom) {
-          batRef.current = null;
-        }
-      }, 500);
-    }, 600);
-  }, [gs, feedback, simReady, isAnimating, getCurrentPitcherSim, getCurrentBatter]);
+      const nextGs = updateGameState(curGs, pendingPitch, pendingBat, batter.name);
+      countRef.current = { ...nextGs.count };
+      setGs(nextGs);
+
+      if (nextGs.lineupIdx[getAttackingSide(nextGs)] !== curGs.lineupIdx[getAttackingSide(curGs)] ||
+          nextGs.topBottom !== curGs.topBottom) {
+        batRef.current = null;
+      }
+
+      setSimStep('done');
+      return;
+    }
+  }, [simStep, gs, simReady, getCurrentPitcherSim, getCurrentBatter, pendingPitch, pendingBat]);
 
   // ── 카운트 + 게임 상태 갱신 (순수 함수) ──────────────────────
   function updateGameState(curGs, pitchResult, batResult, batterName) {
@@ -524,7 +835,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
     setLastResult(null);
     setLastBatting(null);
     setPitchLog([]);
-    setAnimStep(null);
+    setSimStep(null);
     setPendingPitch(null);
     setPendingBat(null);
     setArrivedPitch(null);
@@ -535,11 +846,12 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
   // ── 파생 데이터 ───────────────────────────────────────────────
   const battedBalls = useMemo(() =>
     pitchLog
-      .filter(p => p.batting?.result === 'contact' && p.batting.type !== 'foul' && p.batting.type !== 'foul_back')
+      .filter(p => p.batting?.result === 'contact')
       .map(p => {
         const bat = p.batting;
-        const dist = estDistance(bat);
+        const dist = calcLandingDist(bat);
         if (!dist) return null;
+        if (bat.type === 'foul_back') return { fx: FHX, fy: FHY + 14, type: bat.type, dist };
         return { ...fieldPos(bat.direction, dist), type: bat.type, dist };
       })
       .filter(Boolean),
@@ -553,19 +865,21 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
   const count            = countRef.current;
 
   // ── 단계별 표시 범위 ──────────────────────────────────────────
-  // 투구: planning부터 plan 표시, pitching부터 실행 표시, done에서 판정
-  const pitchSrc = lastResult || arrivedPitch || pendingPitch;
+  const AFTER_PITCH  = ['pitching','judging','batting','done'];
+  const AFTER_JUDGE  = ['judging','batting','done'];
+  const AFTER_BAT    = ['batting','done'];
+
+  const pitchSrc = arrivedPitch || pendingPitch || lastResult;
   const pitchReveal = {
-    plan:    pitchSrc != null,
-    exec:    pitchSrc != null && (animStep === 'pitching' || animStep === 'done' || animStep === null),
-    judge:   pitchSrc != null && (animStep === 'done' || animStep === null),
+    plan:  simStep != null,
+    exec:  AFTER_PITCH.includes(simStep),
+    judge: AFTER_PITCH.includes(simStep),
   };
-  // 타격: planning부터 plan, pitching부터 판단+스윙, done에서 결과
-  const batSrc = (animStep === 'done' || animStep === null) ? lastBatting : pendingBat;
+  const batSrc = AFTER_BAT.includes(simStep) ? lastBatting : pendingBat;
   const batReveal = {
-    plan:    batSrc != null,
-    judgment: batSrc != null && (animStep === 'pitching' || animStep === 'done' || animStep === null),
-    result:   batSrc != null && (animStep === 'done' || animStep === null),
+    plan:     simStep != null && simStep !== 'p_plan',
+    judgment: AFTER_JUDGE.includes(simStep),
+    result:   AFTER_BAT.includes(simStep),
   };
 
   // ── 렌더 ──────────────────────────────────────────────────────
@@ -716,7 +1030,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
                 const col = PITCH_COLORS[arrivedPitch.pitchType] || '#fff';
                 const r   = arrivedPitch.result || arrivedPitch.type;
                 const isStrike = r === 'called_strike';
-                const showBat  = animStep === 'done' || animStep === null;
+                const showBat  = simStep === 'done' || simStep === null || AFTER_BAT.includes(simStep);
                 const batAction = showBat ? lastBatting?.action : null;
                 const batResult = showBat ? lastBatting?.result : null;
                 let label = isStrike ? 'S' : 'B';
@@ -741,9 +1055,9 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
                 <text x={SVG_CX} y={SVG_CY} textAnchor="middle" fill="#FFA726" fontSize={18} fontWeight={700}>{arrivedPitch.description || arrivedPitch.type}</text>
               )}
 
-              {animStep === 'planning' && pendingPitch && (
+              {simStep === 'p_plan' && pendingPitch && (
                 <text x={SVG_CX} y={zoneTop - 14} textAnchor="middle" fill="#FFCA28" fontSize={11} fontWeight={600}>
-                  {PITCH_TYPE_LABELS[pendingPitch.pitchType] || pendingPitch.pitchType} {pendingPitch.plan?.targetVelo}km — 투구 중...
+                  {PITCH_TYPE_LABELS[pendingPitch.pitchType] || pendingPitch.pitchType} {pendingPitch.plan?.targetVelo}km
                 </text>
               )}
 
@@ -772,7 +1086,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
               <div className={styles.sectionLabel}>필드 뷰</div>
               <FieldView
                 battedBalls={battedBalls}
-                lastBatting={lastBatting?.result === 'contact' && lastBatting.type !== 'foul' && lastBatting.type !== 'foul_back' ? lastBatting : null}
+                lastBatting={AFTER_BAT.includes(simStep) && lastBatting?.result === 'contact' ? lastBatting : null}
               />
               <div className={styles.fieldLegend}>
                 {Object.entries(BATTED_BALL_COLORS).map(([type, color]) => (
@@ -813,15 +1127,27 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
               </div>
             </div>
 
-            {/* 투구 버튼 */}
-            <div className={styles.controlRow}>
-              <div className={styles.btnRow}>
-                <button className={styles.pitchBtn} onClick={throwPitch} disabled={!simReady || isAnimating || gs.isGameOver}>
-                  {gs.isGameOver ? '경기 종료' : animStep === 'planning' ? '투구 중...' : animStep === 'pitching' ? '타격 중...' : '투구'}
-                </button>
-                <button className={styles.resetBtn} onClick={resetGame}>리셋</button>
-              </div>
-            </div>
+            {/* 단계별 실행 버튼 */}
+            {(() => {
+              const stepLabel = gs.isGameOver ? '경기 종료'
+                : simStep === null   ? '① 투구 계획 수립'
+                : simStep === 'p_plan'  ? '② 타자 계획 수립'
+                : simStep === 'b_plan'  ? '③ 투구 실행'
+                : simStep === 'pitching' ? '④ 타자 투구 판단'
+                : simStep === 'judging'  ? '⑤ 타격 실행'
+                : simStep === 'batting'  ? '⑥ 결과 확인'
+                : '다음 투구 →';
+              return (
+                <div className={styles.controlRow}>
+                  <div className={styles.btnRow}>
+                    <button className={styles.pitchBtn} onClick={advanceStep} disabled={!simReady || gs.isGameOver}>
+                      {stepLabel}
+                    </button>
+                    <button className={styles.resetBtn} onClick={resetGame}>리셋</button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 투구 메커니즘 (항상 표시) */}
             <div className={styles.mechCard}>
@@ -1018,6 +1344,12 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
             )}
           </div>
         </div>
+        <NarrativeBar
+          pitchSrc={pitchSrc}
+          batSrc={batSrc}
+          pitchReveal={pitchReveal}
+          batReveal={batReveal}
+        />
       </div>
     </div>
   );

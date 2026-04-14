@@ -74,7 +74,7 @@ export function createGameState() {
  * @returns {{ result, hitType?, runsScored, desc, basesAfter, outsAdded }}
  */
 export function judgeInPlay(bat, bases, outs) {
-  const { type, quality, exitVelo, estDist } = bat;
+  const { type, quality, exitVelo, estDist, wallDist } = bat;
   const q = quality / 100;
   const r = Math.random();
 
@@ -133,27 +133,28 @@ export function judgeInPlay(bat, bases, outs) {
   }
 
   if (type === 'deep_fly') {
-    // 깊은 외야 타구 (estDist 72~90m): 홈런성이지만 다양한 결과
+    // 깊은 외야 타구 (담장 18m 이내): 홈런성이지만 다양한 결과
     const dist = estDist ?? 78;
-    // 담장 직격 2루타: 85~90m 구간, 담장 넘을 뻔한 타구
-    if (dist >= 85) {
+    const wDist = wallDist ?? 100;
+
+    // 담장 5m 이내: 담장 직격 타구
+    if (dist >= wDist - 5) {
       const wallDouble = Math.random() < 0.55;
       if (wallDouble) {
         const { newBases, runs } = advanceBases([...bases], 'double');
         return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `담장 직격 2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
       }
-      // 홈런 경계 타구가 잡히는 경우 (레킹 크루 캐치 등)
       return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `담장 앞 외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
     }
-    // 78~85m: 깊은 외야 → 희생플라이 가능
-    if (dist >= 78) {
+    // 담장 12m 이내: 깊은 외야 → 희생플라이 확률 높음
+    if (dist >= wDist - 12) {
       if (bases[2] && outs < 2 && Math.random() < 0.70) {
         const nb = [...bases]; nb[2] = false;
         return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: `깊은 외야 플라이 희생타 (${dist}m, 1타점)`, basesAfter: nb };
       }
       return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `깊은 외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
     }
-    // 72~78m: 중간 깊이 외야 → 일반 희생플라이 확률
+    // 담장 18m 이내: 중간 깊이 외야 → 일반 희생플라이 확률
     if (bases[2] && outs < 2 && q > 0.35 && Math.random() < 0.55) {
       const nb = [...bases]; nb[2] = false;
       return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: `외야 희생 플라이 (${dist}m, 1타점)`, basesAfter: nb };
