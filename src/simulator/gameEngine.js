@@ -10,15 +10,15 @@ const ORDER_LABELS = ['1번', '2번', '3번', '4번', '5번', '6번', '7번', '8
 
 // 타순별 능력치 분포 (중심 조정)
 const ORDER_STATS = [
-  { contact: 62, power: 52, eye: 60, speed: 68 }, // 1번: 빠른 선구안
-  { contact: 65, power: 55, eye: 58, speed: 58 }, // 2번: 컨택+선구
-  { contact: 58, power: 68, eye: 52, speed: 52 }, // 3번: 파워
-  { contact: 55, power: 72, eye: 50, speed: 48 }, // 4번: 클린업
-  { contact: 56, power: 64, eye: 52, speed: 50 }, // 5번
-  { contact: 60, power: 55, eye: 55, speed: 54 }, // 6번
-  { contact: 58, power: 50, eye: 52, speed: 56 }, // 7번
-  { contact: 55, power: 48, eye: 50, speed: 55 }, // 8번
-  { contact: 50, power: 44, eye: 48, speed: 58 }, // 9번: 약한 타자
+  { contact: 62, power: 52, eye: 60, discipline: 62, speed: 68 }, // 1번: 빠른 선구안
+  { contact: 65, power: 55, eye: 58, discipline: 60, speed: 58 }, // 2번: 컨택+선구
+  { contact: 58, power: 68, eye: 52, discipline: 50, speed: 52 }, // 3번: 파워
+  { contact: 55, power: 72, eye: 50, discipline: 48, speed: 48 }, // 4번: 클린업
+  { contact: 56, power: 64, eye: 52, discipline: 50, speed: 50 }, // 5번
+  { contact: 60, power: 55, eye: 55, discipline: 54, speed: 54 }, // 6번
+  { contact: 58, power: 50, eye: 52, discipline: 52, speed: 56 }, // 7번
+  { contact: 55, power: 48, eye: 50, discipline: 50, speed: 55 }, // 8번
+  { contact: 50, power: 44, eye: 48, discipline: 46, speed: 58 }, // 9번: 약한 타자
 ];
 
 function jitter(base, range = 6) {
@@ -27,15 +27,16 @@ function jitter(base, range = 6) {
 
 export function createDefaultLineup(teamId) {
   return ORDER_STATS.map((s, i) => ({
-    id:        `${teamId}-bat-${i + 1}`,
-    name:      ORDER_LABELS[i],
-    contact_l: jitter(s.contact),
-    contact_r: jitter(s.contact),
-    power:     jitter(s.power),
-    eye:       jitter(s.eye),
-    speed:     jitter(s.speed),
-    bunt:      40,
-    fatigue:   0,
+    id:          `${teamId}-bat-${i + 1}`,
+    name:        ORDER_LABELS[i],
+    contact_l:   jitter(s.contact),
+    contact_r:   jitter(s.contact),
+    power:       jitter(s.power),
+    eye:         jitter(s.eye),
+    discipline:  jitter(s.discipline),
+    speed:       jitter(s.speed),
+    bunt:        40,
+    fatigue:     0,
   }));
 }
 
@@ -96,13 +97,13 @@ export function judgeInPlay(bat, bases, outs) {
 
   if (type === 'grounder') {
     // 병살 조건: 1루 주자 + 1아웃 미만
-    const dpPossible = bases[0] && outs < 2 && q < 0.45;
-    if (dpPossible && r < 0.25) {
+    const dpPossible = bases[0] && outs < 2 && q < 0.55;
+    if (dpPossible && r < 0.30) {
       const newBases = [...bases];
       newBases[0] = false;
       return { result: 'out', outType: 'dp', outsAdded: 2, runsScored: 0, desc: '병살타', basesAfter: newBases };
     }
-    const hitProb = 0.22 + q * 0.24;  // 22~46%
+    const hitProb = 0.14 + q * 0.11;  // 14~25%
     if (r < hitProb) {
       const { newBases, runs } = advanceBases([...bases], 'single');
       return { result: 'hit', hitType: 'single', outsAdded: 0, runsScored: runs, desc: `안타 (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
@@ -112,12 +113,11 @@ export function judgeInPlay(bat, bases, outs) {
   }
 
   if (type === 'line_drive') {
-    const hitProb = 0.60 + q * 0.22;  // 60~82%
+    const hitProb = 0.60 + q * 0.10;  // 60~70%
     if (r < hitProb) {
-      // 2루타: quality + exitVelo 기반 (50레벨 ≈110 km/h → ~23%, 70레벨 ≈125 → ~32%)
-      const doubleProb = Math.min(0.50, 0.10 + q * 0.20 + Math.max(0, (exitVelo - 100) / 300));
+      const doubleProb = Math.min(0.50, 0.22 + q * 0.20 + Math.max(0, (exitVelo - 100) / 350));
       const isDouble = Math.random() < doubleProb;
-      const isTriple = isDouble && Math.random() < 0.10;
+      const isTriple = isDouble && Math.random() < 0.08;
       if (isTriple) {
         const { newBases, runs } = advanceBases([...bases], 'triple');
         return { result: 'hit', hitType: 'triple', outsAdded: 0, runsScored: runs, desc: `3루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
@@ -196,10 +196,13 @@ function advanceBases(bases, hitType) {
   if (hitType === 'single') {
     if (b[2]) { runs++; b[2] = false; }
     if (b[1]) {
-      if (Math.random() < 0.60) { runs++; b[1] = false; }
+      if (Math.random() < 0.50) { runs++; b[1] = false; }  // 2루→홈 50%
       else { b[2] = true; b[1] = false; }
     }
-    if (b[0]) { b[1] = true; b[0] = false; }
+    if (b[0]) {
+      if (Math.random() < 0.25) { b[2] = true; b[0] = false; } // 1루→3루 25%
+      else { b[1] = true; b[0] = false; }
+    }
     b[0] = true;
   } else if (hitType === 'double') {
     if (b[2]) { runs++; b[2] = false; }

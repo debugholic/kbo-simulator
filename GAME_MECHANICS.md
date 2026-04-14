@@ -201,8 +201,10 @@ condition clamp(0, 100)
 
 ```
 최적 구간: 20 ~ 65   → 실수 보정 없음
-너무 낮음: tension < 20   → 방심. mistakeMod = (20 - tension) / 20 * 0.25  // 최대 +25%
-너무 높음: tension > 65   → 과긴장. mistakeMod = (tension - 65) / 35 * 0.25  // 최대 +25%
+너무 낮음: tension < 20   → 방심. mistakeMod = (20 - tension) / 20 * 0.12  // 최대 +12%
+너무 높음: tension > 65   → 과긴장. mistakeMod = (tension - 65) / 35 * 0.12  // 최대 +12%
+
+tension 초기값: 45 (기본 타석 압박 반영)
 ```
 
 **긴장도 이벤트 테이블:**
@@ -322,13 +324,21 @@ attributesMod:
 직전 투구 결과를 바탕으로 해당 구종의 컨디션을 갱신한다.
 소모는 없고 결과에 따라 오르내리기만 한다.
 
-헛스윙 유도 성공        → pitchTypeCondition[type] += 3.0   // 잘 먹히고 있음
-루킹 스트라이크         → pitchTypeCondition[type] += 1.0   // 위치 좋음
-파울 유도 (2스트라이크) → pitchTypeCondition[type] += 1.5   // 타자가 쫓아옴
-피안타 (라인드라이브+)  → pitchTypeCondition[type] -= 4.0   // 타자가 맞춰냄
-피홈런                  → pitchTypeCondition[type] -= 6.0   // 완전히 읽힘
-볼 (크게 벗어남)        → pitchTypeCondition[type] -= 1.5   // 제구 안 됨
-연속 사용 후 피안타     → pitchTypeCondition[type] -= 2.0   // 타자 적응
+헛스윙 유도 성공        → pitchTypeCondition[type] += 3.0 + commandBonus
+루킹 스트라이크         → pitchTypeCondition[type] += 1.0 + commandBonus
+파울 유도               → pitchTypeCondition[type] += 1.5 + commandBonus
+팝업                    → pitchTypeCondition[type] += 1.0 + commandBonus
+피홈런                  → pitchTypeCondition[type] -= 6.0
+피라인드라이브           → pitchTypeCondition[type] -= 4.0
+피깊은뜬공              → pitchTypeCondition[type] -= 2.5
+피뜬공                  → pitchTypeCondition[type] -= 1.5
+땅볼                    → pitchTypeCondition[type] -= 0.5 + commandBonus
+볼 (의도한 유인구 제외) → pitchTypeCondition[type] -= 1.5 + commandBonus
+
+commandBonus (제구 달성 여부):
+  목표 위치와 실제 위치 거리 < 0.3  → +1.5 (정확히 꽂힘)
+  목표 위치와 실제 위치 거리 < 0.6  → +0.5 (대체로 의도한 코스)
+  목표 위치와 실제 위치 거리 > 1.2  → -1.0 (목표에서 크게 벗어남)
 
 clamp(40, 100)
 ```
@@ -635,7 +645,8 @@ velocity = targetVelo
 | `contact` | 컨택 (공을 맞히는 능력) | 20-80 |
 | `contact_l` / `contact_r` | 좌/우투수 상대 컨택 | 20-80 |
 | `power` | 장타력 | 20-80 |
-| `eye` | 선구력 (볼/스트라이크 판별) | 20-80 |
+| `eye` | 선구력 (구종 판단 정확도) | 20-80 |
+| `discipline` | 선구안 (볼/스트라이크 선별 — swingThreshold 결정) | 20-80 |
 | `speed` | 발빠름 | 20-80 |
 | `bunt` | 번트 능력 | 20-80 |
 

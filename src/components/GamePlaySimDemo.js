@@ -37,7 +37,12 @@ function calcLandingDist(bat) {
   const t = bat.type;
   const v = bat.exitVelo / 3.6;
   const rad = (bat.launchAngle || 0) * Math.PI / 180;
-  if (t === 'grounder')  return Math.min(95, 15 + v * 1.4);
+  if (t === 'grounder') {
+    const angle = bat.launchAngle || 0;
+    // 음수 각도일수록 홈 근처에 찍힘, 0~15° 는 내야 중~깊숙이
+    const angleFactor = angle < 0 ? Math.max(0.05, 1 + angle / 15) : 1 + angle / 30;
+    return Math.min(45, Math.max(2, (8 + v * 0.7) * angleFactor));
+  }
   if (t === 'popup')     return Math.min(50, 10 + v * 0.6);
   if (t === 'foul')      return Math.min(60, 8 + v * 0.9);
   if (t === 'foul_back') return Math.min(20, 4 + v * 0.4);
@@ -116,7 +121,7 @@ function PitcherCard({ player, team, selected, onSelect }) {
 }
 
 // ── 서브 컴포넌트: 스코어보드 ───────────────────────────────────
-function Scoreboard({ gs, awayName, homeName, awayPitcher, homePitcher, count, outs, pitchCount }) {
+function Scoreboard({ gs, awayName, homeName, awayPitcher, homePitcher, count, outs, pitchCount, totalStrikes, totalBalls }) {
   const bases = gs.bases;
   const bSize = 10;
   return (
@@ -176,8 +181,8 @@ function Scoreboard({ gs, awayName, homeName, awayPitcher, homePitcher, count, o
             <span style={{ color: '#2a3a50', fontSize: 10 }}>│</span>
             <span style={{ fontSize: 10, color: '#8892b0' }}>
               <b style={{ color: '#ccd6f6' }}>{pitchCount}</b>구
-              <span style={{ color: '#FFCA28', marginLeft: 4 }}>{count.strikes}S</span>
-              <span style={{ color: '#66BB6A', marginLeft: 3 }}>{count.balls}B</span>
+              <span style={{ color: '#FFCA28', marginLeft: 4 }}>{totalStrikes}S</span>
+              <span style={{ color: '#66BB6A', marginLeft: 3 }}>{totalBalls}B</span>
             </span>
           </>
         )}
@@ -387,185 +392,199 @@ function FieldView({ battedBalls, lastBatting }) {
   );
 }
 
-// ── 서브 컴포넌트: 단계별 알고리즘 디버그 패널 ──────────────────────
+// ── 서브 컴포넌트: 서술형 나레이션 패널 ────────────────────────────
 function NarrativeBar({ pitchSrc, batSrc, pitchReveal, batReveal }) {
-  if (!pitchSrc && !batSrc) return null;
-
   const PT = PITCH_TYPE_LABELS;
   const BL = BATTED_BALL_LABELS;
 
-  // 단계 행 렌더
-  const Step = ({ tag, tagColor, children }) => (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 0', borderBottom: '1px solid #0e1824' }}>
-      <span style={{
-        fontSize: 9, fontWeight: 800, color: tagColor,
-        background: `${tagColor}22`, border: `1px solid ${tagColor}44`,
-        borderRadius: 4, padding: '1px 5px', flexShrink: 0, letterSpacing: '0.05em',
-      }}>{tag}</span>
-      <span style={{ fontSize: 11, color: '#ccd6f6', lineHeight: 1.6, flexWrap: 'wrap', display: 'flex', gap: '0 6px', alignItems: 'baseline' }}>
-        {children}
-      </span>
-    </div>
-  );
-  const Kv = ({ k, v, vc }) => (
-    <span><span style={{ color: '#4a6a8a', fontSize: 10 }}>{k} </span><b style={{ color: vc || '#ccd6f6' }}>{v}</b></span>
-  );
-  const Sep = () => <span style={{ color: '#2a3a50' }}>·</span>;
-
-  const steps = [];
+  // ── 서술문 생성 ────────────────────────────────────────────────
 
   // ① 투수 계획
-  if (pitchReveal.plan && pitchSrc?.plan) {
-    const p = pitchSrc.plan;
-    const pColor = PITCH_COLORS[pitchSrc.pitchType] || '#ccc';
-    steps.push(
-      <Step key="p-plan" tag="투수 계획" tagColor="#4a8aaa">
-        <Kv k="구종" v={PT[pitchSrc.pitchType] || pitchSrc.pitchType} vc={pColor} />
-        <Sep/>
-        <Kv k="목표구속" v={`${p.targetVelo}km`} />
-        {p.locationZone && <><Sep/><Kv k="목표존" v={p.locationZone} /></>}
-        {p.reasoning?.slice(0, 2).map((r, i) => <><Sep/><span key={i} style={{ color: '#4a6a7a', fontSize: 10 }}>{r}</span></>)}
-      </Step>
-    );
+  function line1() {
+    if (!pitchReveal.plan || !pitchSrc?.plan) return null;
+    const p    = pitchSrc.plan;
+    const type = PT[pitchSrc.pitchType] || pitchSrc.pitchType;
+    const zone = p.locationZone ? `${p.locationZone} ` : '';
+    const reason = p.reasoning?.[0] ? ` ${p.reasoning[0]}.` : '';
+    return `포수가 ${zone}${type} 사인을 냈다.${reason} 투수는 ${p.targetVelo}km를 목표로 준비한다.`;
   }
 
-  // ② 투수 실행 + 판정
-  if (pitchReveal.exec && pitchSrc?.pitchQuality != null) {
-    const q = pitchSrc.pitchQuality;
-    const qColor = q >= 70 ? '#66BB6A' : q >= 40 ? '#FFCA28' : '#EF5350';
-    const r = pitchSrc.result || pitchSrc.type;
-    steps.push(
-      <Step key="p-exec" tag="투수 실행" tagColor="#3a7090">
-        <Kv k="실제구속" v={`${pitchSrc.velocity}km/h`} />
-        <Sep/>
-        <Kv k="퀄리티" v={q} vc={qColor} />
-        {pitchSrc.qualityDetail?.isMistake && <><Sep/><span style={{ color: '#EF5350', fontWeight: 700 }}>실수!</span></>}
-        {pitchSrc.location && <><Sep/><Kv k="착점" v={`(${pitchSrc.location.x?.toFixed(2)}, ${pitchSrc.location.y?.toFixed(2)})`} /></>}
-        {pitchReveal.judge && <><Sep/><Kv k="판정" v={resultLabel(r)} vc={resultColor(r)} /></>}
-      </Step>
-    );
-  }
-
-  // ③ 타자 계획
-  if (batReveal.plan && batSrc?.plan) {
+  // ② 타자 계획
+  function line2() {
+    if (!batReveal.plan || !batSrc?.plan) return null;
     const bp = batSrc.plan;
-    const tacticLabel = bp.tactic === 'take' ? '테이크' : bp.tactic === 'contact' ? '컨택' : '풀스윙';
-    const tacticColor = bp.tactic === 'take' ? '#546E7A' : bp.tactic === 'contact' ? '#42A5F5' : '#AB47BC';
-    const biasStr = bp.biasStrength != null ? `${bp.biasStrength > 0 ? '+' : ''}${Math.round(bp.biasStrength * 100)}%` : null;
-    steps.push(
-      <Step key="b-plan" tag="타자 계획" tagColor="#8a4aaa">
-        <Kv k="전략" v={tacticLabel} vc={tacticColor} />
-        <Sep/>
-        <Kv k="예측구종" v={bp.predictedPitchType ? (PT[bp.predictedPitchType] || bp.predictedPitchType) : '없음'} vc={bp.predictedPitchType ? (PITCH_COLORS[bp.predictedPitchType] || '#ccc') : '#546E7A'} />
-        {biasStr && <><Sep/><Kv k="예측신뢰도" v={biasStr} vc={parseFloat(biasStr) >= 0 ? '#66BB6A' : '#EF5350'} /></>}
-        <Sep/>
-        <Kv k="목표스윙Lv" v={bp.targetSwingLevel} />
-        {bp.targetBallResult && <><Sep/><Kv k="목표타구" v={bp.targetBallResult} /></>}
-      </Step>
-    );
+    const pred = bp.predictedPitchType ? PT[bp.predictedPitchType] || bp.predictedPitchType : null;
+    const bias = bp.biasStrength ?? 0;
+    const predText = pred
+      ? (bias > 0.3 ? `${pred}를 강하게 예상하고 있다.` : bias < -0.2 ? `${pred}를 예상하지만 확신이 없다.` : `${pred}를 예상하고 있다.`)
+      : '어떤 공이 올지 감을 잡지 못하고 있다.';
+    const tacticText = bp.tactic === 'take' ? ' 일단 공을 보기로 했다.' : bp.tactic === 'contact' ? ' 맞추는 데 집중한다.' : ' 풀스윙 준비.';
+    return `타자: ${predText}${tacticText}`;
   }
 
-  // ④ 타자 판단
-  if (batReveal.judgment && batSrc?.judgment) {
-    const j = batSrc.judgment;
-    const jtColor = j.judgmentType === 'bias_confirmed' ? '#66BB6A'
-                  : j.judgmentType === 'accurate_neutral' ? '#81C784'
-                  : j.judgmentType === 'bias_interfered'  ? '#FFA726'
-                  : j.judgmentType === 'category_confused' ? '#EF5350'
-                  : '#90A4AE';
-    const jtLabel = j.judgmentType === 'bias_confirmed'  ? '선입견강화'
-                  : j.judgmentType === 'accurate_neutral' ? '정확판단'
-                  : j.judgmentType === 'neutral'          ? '중립'
-                  : j.judgmentType === 'bias_interfered'  ? '선입견방해'
-                  : '계열혼동';
-    steps.push(
-      <Step key="b-judge" tag="타자 판단" tagColor="#aa7a2a">
-        <Kv k="실제구종" v={PT[j.actualPitchType] || j.actualPitchType || '-'} vc={PITCH_COLORS[j.actualPitchType] || '#ccc'} />
-        <Sep/>
-        <Kv k="인식구종" v={PT[j.judgedPitchType] || j.judgedPitchType || '-'} vc={j.judgedPitchType !== j.actualPitchType ? '#FFA726' : '#ccd6f6'} />
-        <Sep/>
-        <Kv k="판단" v={jtLabel} vc={jtColor} />
-        <Sep/>
-        <Kv k="swingMod" v={`×${j.swingMod}`} vc={j.swingMod >= 1.05 ? '#66BB6A' : j.swingMod <= 0.75 ? '#EF5350' : '#FFA726'} />
-        <Sep/>
-        <Kv k="예측적중" v={j.predictedCorrect ? '✓' : '✗'} vc={j.predictedCorrect ? '#66BB6A' : '#EF5350'} />
-        {j.locationBias !== 0 && <><Sep/><Kv k="위치편향" v={j.locationBias > 0 ? `+${j.locationBias}` : j.locationBias} vc={j.locationBias > 0.05 ? '#FFA726' : '#8892b0'} /></>}
-      </Step>
-    );
+  // ③ 투구 실행
+  function line3() {
+    if (!pitchReveal.exec || pitchSrc?.pitchQuality == null) return null;
+    const type = PT[pitchSrc.pitchType] || pitchSrc.pitchType;
+    const q    = pitchSrc.pitchQuality;
+    const qual = q >= 70 ? '완벽한' : q >= 50 ? '괜찮은' : q >= 30 ? '평범한' : '흔들린';
+    const mistake = pitchSrc.qualityDetail?.isMistake ? ' 실투다!' : '';
+    const r = pitchSrc.result || pitchSrc.type;
+    const judge = r === 'called_strike' ? '스트라이크.' : r === 'ball' ? '볼.' : r === 'hit_by_pitch' ? '몸에 맞는 볼.' : r === 'wild_pitch' ? '폭투!' : '';
+
+    // 존 위치 표현
+    let locText = '';
+    const loc = pitchSrc.location;
+    if (loc) {
+      const ZONE_X = 1.0, ZONE_Y = 1.35;
+      const inX = Math.abs(loc.x) <= ZONE_X;
+      const inY = loc.y >= -ZONE_Y && loc.y <= ZONE_Y;
+      if (inX && inY) {
+        // 존 안 — 세부 위치
+        const hPos = loc.x < -ZONE_X * 0.4 ? '몸쪽' : loc.x > ZONE_X * 0.4 ? '바깥쪽' : '한가운데';
+        const vPos = loc.y > ZONE_Y * 0.4 ? '높은' : loc.y < -ZONE_Y * 0.4 ? '낮은' : '중간';
+        locText = ` 스트라이크존 ${vPos} ${hPos}으로.`;
+      } else {
+        // 존 밖 — 방향 표현
+        const parts = [];
+        if (!inX) parts.push(loc.x < 0 ? '몸쪽' : '바깥쪽');
+        if (!inY) parts.push(loc.y < -ZONE_Y ? '아래쪽' : '위쪽');
+        locText = ` 존 ${parts.join(' ')}으로 빠졌다.`;
+      }
+    }
+
+    return `${pitchSrc.velocity}km ${qual} ${type}이 들어왔다.${mistake}${locText} ${judge}`;
+  }
+  function line4() {
+    if (!batReveal.judgment || !batSrc?.judgment) return null;
+    const j       = batSrc.judgment;
+    const actual  = PT[j.actualPitchType]  || j.actualPitchType  || '?';
+    const judged  = PT[j.judgedPitchType]  || j.judgedPitchType  || '?';
+    const correct = j.judgedPitchType === j.actualPitchType;
+    const predicted = batSrc.plan?.predictedPitchType;
+    const predLabel = predicted ? PT[predicted] || predicted : null;
+
+    // 예상 투구 위치 표현 — 실제 위치와 유사도 비교 + 타자가 느낀 위치
+    let predLocText = '';
+    const predZone = batSrc.plan?.predictedZone;
+    const actualLoc = pitchSrc?.location;
+    const judgedLoc = j.judgedLocation;
+
+    // 타자가 느낀 위치 정확도 (judgedLocation vs actualLocation 비교)
+    let judgedZoneText = '';
+    if (judgedLoc && actualLoc) {
+      const dx = judgedLoc.x - actualLoc.x;
+      const dy = judgedLoc.y - actualLoc.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if      (dist < 0.25) judgedZoneText = '위치를 정확히 읽었다.';
+      else if (dist < 0.55) judgedZoneText = '위치를 대체로 읽었다.';
+      else if (dist < 0.90) judgedZoneText = '위치 판단이 다소 빗나갔다.';
+      else                  judgedZoneText = '위치 판단이 크게 빗나갔다.';
+    }
+
+    if (predZone && actualLoc) {
+      const ZONE_X = 1.0, ZONE_Y = 1.35;
+      let actualZone;
+      if      (actualLoc.x < -ZONE_X * 0.5) actualZone = 'inside';
+      else if (actualLoc.x >  ZONE_X * 0.5) actualZone = 'outside';
+      else if (actualLoc.y >  ZONE_Y * 0.5) actualZone = 'high';
+      else if (actualLoc.y < -ZONE_Y * 0.5) actualZone = 'low';
+      else                                   actualZone = 'center';
+
+      const zoneMap = { inside: '몸쪽', outside: '바깥쪽', high: '존 위쪽', low: '존 아래쪽', center: '한가운데' };
+      const predLabel2 = zoneMap[predZone] || predZone;
+      const horizPair = new Set(['inside-center','center-inside','outside-center','center-outside']);
+      const vertPair  = new Set(['high-center','center-high','low-center','center-low']);
+      const pairKey   = `${predZone}-${actualZone}`;
+
+      let simText;
+      if (actualZone === predZone)                              simText = `예상 위치(${predLabel2})와 일치.`;
+      else if (horizPair.has(pairKey) || vertPair.has(pairKey)) simText = `예상(${predLabel2})과 비슷한 코스.`;
+      else                                                       simText = `예상(${predLabel2})과 전혀 다른 코스.`;
+
+      predLocText = ` ${simText}${judgedZoneText ? ' ' + judgedZoneText : ''}`;
+    } else if (judgedZoneText) {
+      predLocText = ` ${judgedZoneText}`;
+    }
+
+    let judgmentText;
+    if (correct) {
+      if (predLabel && predicted === j.actualPitchType) judgmentText = `예상대로 ${actual}이 왔다. 잘 읽었다.`;
+      else if (predLabel) judgmentText = `${predLabel}를 기다렸는데 실제로는 ${actual}이었다. 그래도 제대로 읽어냈다.`;
+      else judgmentText = `${actual}임을 알아챘다.`;
+    } else {
+      if (j.judgmentType === 'bias_confirmed')
+        judgmentText = `${actual}이었지만 예상한 ${judged}처럼 보였다. 선입견이 판단을 흐렸다.`;
+      else if (j.judgmentType === 'category_confused')
+        judgmentText = `${actual}을 ${judged}로 완전히 착각했다. 구질 자체를 잘못 읽었다.`;
+      else if (predLabel)
+        judgmentText = `${predLabel}를 기다렸는데 ${judged}처럼 보였다. 예상이 빗나갔다.`;
+      else
+        judgmentText = `${actual}인데 ${judged}처럼 느껴졌다.`;
+    }
+
+    return `타자: ${judgmentText}${predLocText}`;
   }
 
   // ⑤ 스윙 결정
-  if (batReveal.judgment && batSrc?.overlap != null) {
-    const didSwing = batSrc.action === 'swing';
-    steps.push(
-      <Step key="b-swing" tag="스윙 결정" tagColor="#2a7aaa">
-        <Kv k="오버랩" v={batSrc.overlap} vc="#42A5F5" />
-        <Sep/>
-        <Kv k="기준" v={batSrc.threshold} />
-        <Sep/>
-        <span style={{ fontWeight: 700, color: didSwing ? '#66BB6A' : '#546E7A' }}>{didSwing ? '▶ 스윙' : '— 노스윙'}</span>
-        {didSwing && batSrc.swingLevel != null && <>
-          <Sep/>
-          <Kv k="스윙Lv" v={batSrc.swingLevel} vc="#42A5F5" />
-          <Sep/>
-          <Kv k="타입" v={swingTypeLabel(batSrc.swingType)} vc="#ccd6f6" />
-        </>}
-      </Step>
-    );
+  function line5() {
+    if (!batReveal.result || batSrc?.overlap == null) return null;
+    if (batSrc.action === 'take') {
+      return `배트를 들지 않았다.`;
+    }
+    const st = batSrc.swingType;
+    const typeText = st === 'full_swing' ? '풀스윙.' : st === 'check_swing' ? '체크스윙.' : st === 'check_swing_held' ? '스윙을 참았다.' : st === 'late_swing' ? '늦은 스윙.' : '스윙.';
+    const lvText = batSrc.swingLevel != null ? ` (스윙 레벨 ${batSrc.swingLevel})` : '';
+    return typeText + lvText;
   }
 
   // ⑥ 결과
-  if (batReveal.result && batSrc) {
-    let resultContent;
+  function line6() {
+    if (!batReveal.finalResult || !batSrc) return null;
     if (batSrc.action === 'take') {
-      resultContent = <span style={{ color: '#546E7A', fontWeight: 600 }}>노스윙 (볼데드)</span>;
-    } else if (batSrc.result === 'whiff') {
-      resultContent = <>
-        <span style={{ color: '#EF5350', fontWeight: 700 }}>헛스윙</span>
-        <Sep/>
-        <Kv k="헛스윙확률" v={`${Math.round((batSrc.whiffProb ?? 0) * 100)}%`} vc="#EF5350" />
-        <Sep/>
-        <Kv k="위치오차" v={batSrc.locationError} />
-      </>;
-    } else if (batSrc.result === 'contact') {
+      const r = pitchSrc?.result || pitchSrc?.type;
+      return r === 'called_strike' ? '스트라이크 선언. 삼진 위기.' : r === 'ball' ? '볼 선언.' : null;
+    }
+    if (batSrc.result === 'whiff') return `헛스윙. 배트가 헛돌았다.`;
+    if (batSrc.result === 'contact') {
       const t = batSrc.type;
-      const isFoul = t === 'foul' || t === 'foul_back';
-      resultContent = <>
-        <Kv k="타구" v={BL[t] || t} vc={BATTED_BALL_COLORS[t] || '#90A4AE'} />
-        <Sep/>
-        <Kv k="컨택퀄리티" v={batSrc.quality} vc={batSrc.quality >= 60 ? '#66BB6A' : batSrc.quality >= 35 ? '#FFCA28' : '#EF5350'} />
-        {!isFoul && <>
-          <Sep/><Kv k="타구속도" v={`${batSrc.exitVelo}km/h`} />
-          <Sep/><Kv k="발사각" v={`${batSrc.launchAngle}°`} />
-          <Sep/><Kv k="방향" v={`${batSrc.direction}°`} />
-          {batSrc.estDist && <><Sep/><Kv k="거리" v={`${batSrc.estDist}m`} vc="#FFA726" /></>}
-        </>}
-      </>;
+      const label = BL[t] || t;
+      if (t === 'foul_back') return `파울팁. 뒤로 빠졌다.`;
+      if (t === 'foul')      return `파울. 선 밖으로 나갔다.`;
+      if (t === 'home_run')  return `홈런! ${batSrc.estDist}m 장타.`;
+      if (t === 'deep_fly')  return `${label}. ${batSrc.estDist ? batSrc.estDist + 'm ' : ''}담장 근처까지 날아갔다.`;
+      const distText = batSrc.estDist ? ` ${batSrc.estDist}m.` : '.';
+      return `${label}.${distText} 타구속도 ${batSrc.exitVelo}km/h, 발사각 ${batSrc.launchAngle}°.`;
     }
-    if (resultContent) {
-      steps.push(<Step key="b-result" tag="결과" tagColor="#2a9a4a">{resultContent}</Step>);
-    }
+    return null;
   }
 
-  // 빈 행 채우기 (6개 고정)
-  const TOTAL_ROWS = 6;
-  while (steps.length < TOTAL_ROWS) {
-    steps.push(
-      <div key={`empty-${steps.length}`} style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '2px 0', borderBottom: '1px solid #0e1824', minHeight: 22,
-      }}>
-        <span style={{ fontSize: 9, color: '#1e2a3a', padding: '1px 5px' }}>—</span>
-      </div>
-    );
-  }
+  const LINES = [
+    { key: 'p-plan',   num: '①', text: line1(), color: '#3a6a8a' },
+    { key: 'b-plan',   num: '②', text: line2(), color: '#6a3a8a' },
+    { key: 'p-exec',   num: '③', text: line3(), color: '#2a6070' },
+    { key: 'b-judge',  num: '④', text: line4(), color: '#8a6a2a' },
+    { key: 'b-swing',  num: '⑤', text: line5(), color: '#2a5a8a' },
+    { key: 'b-result', num: '⑥', text: line6(), color: '#2a7a4a' },
+  ];
 
   return (
     <div style={{
       borderTop: '2px solid #1e2a3a', background: '#060a10',
       padding: '4px 20px 4px', flexShrink: 0,
     }}>
-      {steps}
+      {LINES.map(({ key, num, text, color }) => (
+        <div key={key} style={{
+          display: 'flex', alignItems: 'baseline', gap: 7,
+          padding: '2px 0', borderBottom: '1px solid #0e1824', minHeight: 22,
+        }}>
+          <span style={{ fontSize: 9, color, fontWeight: 700, flexShrink: 0, width: 14 }}>{num}</span>
+          {text
+            ? <span style={{ fontSize: 11, color: '#b8c8e0', lineHeight: 1.5 }}>{text}</span>
+            : <span style={{ fontSize: 11, color: '#1e2a3a' }}>—</span>
+          }
+        </div>
+      ))}
     </div>
   );
 }
@@ -677,11 +696,18 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
         batRef.current._batterId = batter.id;
       }
 
-      const pitchResult = pitcherSim.simulate(count, { outs: curGs.outs }, feedbackRef.current);
+      const situation = {
+        outs:    curGs.outs,
+        bases:   curGs.bases,
+        isClose: Math.abs((curGs.score?.away ?? 0) - (curGs.score?.home ?? 0)) <= 2,
+        isLate:  curGs.inning >= 7,
+      };
+
+      const pitchResult = pitcherSim.simulate(count, situation, feedbackRef.current);
       let batResult = null;
       if (pitchResult.isNormal && pitchResult.location) {
         const knownPitchTypes = pitcherSim.pitchTypes?.map(p => p.type) ?? [];
-        batResult = batRef.current.simulate(pitchResult, count, 'R', knownPitchTypes);
+        batResult = batRef.current.simulate(pitchResult, count, 'R', knownPitchTypes, situation);
       }
 
       setPendingPitch(pitchResult);
@@ -721,7 +747,9 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
       const pitcherSim = getCurrentPitcherSim(curGs);
 
       if (pendingPitch?.isNormal) pitcherSim?.applyBattingFeedback(pendingPitch, pendingBat);
-      if (pendingBat) batRef.current?.applyBallDeadFeedback(pendingBat);
+      if (pendingBat) batRef.current?.applyBallDeadFeedback(pendingBat, {
+        isRisp: curGs.bases[1] || curGs.bases[2],
+      });
 
       setPitchLog(prev => [{ ...pendingPitch, batting: pendingBat }, ...prev]);
       setPendingBat(null);
@@ -730,9 +758,34 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
       countRef.current = { ...nextGs.count };
       setGs(nextGs);
 
+      // 타석 종료 감지 (카운트 리셋 = 타석 완료)
+      const atBatEnded = nextGs.count.balls === 0 && nextGs.count.strikes === 0 &&
+        (curGs.count.balls > 0 || curGs.count.strikes > 0 ||
+         nextGs.lineupIdx[getAttackingSide(nextGs)] !== curGs.lineupIdx[getAttackingSide(curGs)]);
+      if (atBatEnded && batRef.current) {
+        // 타석 결과 피드백
+        const lastPitch = pendingPitch;
+        const lastBat   = pendingBat;
+        const isRisp    = curGs.bases[1] || curGs.bases[2];
+        if (lastBat?.action === 'swing' && lastBat?.result === 'whiff' &&
+            curGs.count.strikes === 2) {
+          batRef.current.applyAtBatResult('strikeout', { isRisp });
+        } else if (lastBat?.result === 'contact') {
+          if (lastBat.type === 'home_run') batRef.current.applyAtBatResult('home_run', { isRisp });
+          else if (lastBat.runsScored > 0) batRef.current.applyAtBatResult('rbi_hit', { isRisp });
+          else batRef.current.applyAtBatResult('hit', { isRisp });
+        }
+      }
+
       if (nextGs.lineupIdx[getAttackingSide(nextGs)] !== curGs.lineupIdx[getAttackingSide(curGs)] ||
           nextGs.topBottom !== curGs.topBottom) {
         batRef.current = null;
+
+        // 이닝 전환 시 투수/타자 tension+physique 회복
+        if (nextGs.topBottom !== curGs.topBottom) {
+          simAwayRef.current?.onInningEnd();
+          simHomeRef.current?.onInningEnd();
+        }
       }
 
       setSimStep('done');
@@ -880,6 +933,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
     plan:     simStep != null && simStep !== 'p_plan',
     judgment: AFTER_JUDGE.includes(simStep),
     result:   AFTER_BAT.includes(simStep),
+    finalResult: simStep === 'done',
   };
 
   // ── 렌더 ──────────────────────────────────────────────────────
@@ -981,6 +1035,13 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
               count={count}
               outs={gs.outs}
               pitchCount={pitchLog.length}
+              totalStrikes={pitchLog.filter(p => {
+                const r = p.result || p.type;
+                return r === 'called_strike' || r === 'swinging_strike' ||
+                  (p.batting?.result === 'whiff') ||
+                  (p.batting?.type === 'foul') || (p.batting?.type === 'foul_back');
+              }).length}
+              totalBalls={pitchLog.filter(p => (p.result || p.type) === 'ball').length}
             />
 
             {/* 스트라이크존 SVG */}

@@ -8,6 +8,7 @@ import ConfidenceDemo from './components/ConfidenceDemo';
 import GrowthSimDemo from './components/GrowthSimDemo';
 import TradeDemo from './components/TradeDemo';
 import GamePlaySimDemo from './components/GamePlaySimDemo';
+import SimBenchmark from './components/SimBenchmark';
 import { matchPositionGroup, getOverall, getPositionGroup, getTeamDisplayColor, calcAge } from './utils';
 import { useData } from './hooks/useData';
 import styles from './App.module.css';
@@ -27,6 +28,7 @@ export default function App() {
   const [showGrowthSim, setShowGrowthSim] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
   const [showPitchSim, setShowPitchSim] = useState(false);
+  const [showBenchmark, setShowBenchmark] = useState(false);
 
   const handlePlayerType = useCallback((type) => {
     setPlayerType(type);
@@ -168,6 +170,12 @@ export default function App() {
             >
               ⚾ 경기 시뮬
             </button>
+            <button
+              onClick={() => setShowBenchmark(true)}
+              style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, background: '#7B1FA222', border: '1px solid #7B1FA244', color: '#CE93D8', cursor: 'pointer', fontWeight: 600 }}
+            >
+              📊 벤치마크
+            </button>
           </div>
         </div>
       </header>
@@ -177,6 +185,7 @@ export default function App() {
       {showGrowthSim && <GrowthSimDemo onClose={() => setShowGrowthSim(false)} />}
       {showTrade && <TradeDemo onClose={() => setShowTrade(false)} players={players} teams={teams} attrOpinions={attrOpinions} />}
       {showPitchSim && <GamePlaySimDemo onClose={() => setShowPitchSim(false)} players={players} teamsMap={teamsMap} />}
+      {showBenchmark && <SimBenchmark onClose={() => setShowBenchmark(false)} />}
 
       <main className={styles.main}>
         <TeamSelector

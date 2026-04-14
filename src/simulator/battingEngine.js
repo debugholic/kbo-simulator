@@ -45,15 +45,18 @@ const COUNT_FB_PROB = {
 };
 
 /**
- * 이전 투구 피드백으로 예측 신뢰도 강도 계산 (최근 3구 기준).
- * @param {Array} pitchHistory — [{ actualPitchType, predictedPitchType, predictedCorrect }]
- * @returns {number} -1 (불신뢰) ~ +1 (신뢰)
+ * 이전 투구 피드백으로 선입견 강도 계산 (최근 4구 기준).
+ * - 예측이 맞았거나(predictedCorrect) 착각으로 예측 구종처럼 느꼈을 때(wasBiasConfirmed) → 선입견 강화
+ * - 예측이 완전히 빗나갔을 때 → 선입견 약화
+ * @param {Array} pitchHistory — [{ actualPitchType, predictedPitchType, predictedCorrect, wasBiasConfirmed }]
+ * @returns {number} -1 (선입견 없음/불신) ~ +1 (선입견 강함)
  */
 function computeBiasStrength(pitchHistory) {
-  const relevant = pitchHistory.filter(p => p.predictedPitchType !== null).slice(-3);
+  const relevant = pitchHistory.filter(p => p.predictedPitchType !== null).slice(-4);
   if (!relevant.length) return 0;
-  const correct = relevant.filter(p => p.predictedCorrect).length;
-  return clamp((correct / relevant.length) * 2 - 1, -1, 1);
+  // 예측 적중 + 착각(bias_confirmed) 모두 선입견 강화에 기여
+  const reinforced = relevant.filter(p => p.predictedCorrect || p.wasBiasConfirmed).length;
+  return clamp((reinforced / relevant.length) * 2 - 1, -1, 1);
 }
 
 /**
@@ -111,17 +114,16 @@ function predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitc
  */
 export function generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes = []) {
   const { balls, strikes } = count;
-  const { eye, power, tension } = batterState;
-  const eyeNorm   = norm(eye);
-  const powerNorm = norm(power);
-  const tensionFactor = getYerkesFactor(tension);
+  const { eye, power, discipline, tension } = batterState;
+  const eyeNorm        = norm(eye);
+  const powerNorm      = norm(power);
+  const disciplineNorm = norm(discipline ?? 50);
+  const tensionFactor  = getYerkesFactor(tension);
 
   // ── 피드백 기반 바이어스 강도 ──
-  // 최근 예측이 맞았을수록 +, 틀렸을수록 — → 다음 판단의 swingMod 크기에 반영
   const biasStrength = computeBiasStrength(pitchHistory);
 
   // ── 예측 구종 (카운트 + 히스토리 기반, 실제 구종 미사용) ──
-  // 반드시 투수의 알려진 레퍼토리 내에서만 예측
   const predictedPitchType = predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes);
 
   // ── 예측 존 ──
@@ -133,9 +135,23 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
   }
 
   // ── 작전 ──
+  // discipline 높을수록 볼카운트 유리할 때 기다리는 경향 강함
   let tactic = 'full_swing';
-  if (balls === 3 && strikes < 2 && Math.random() < 0.3) tactic = 'take';
+  if (balls === 3 && strikes < 2 && Math.random() < 0.20 + disciplineNorm * 0.30) tactic = 'take';
   if (strikes === 2) tactic = 'contact';
+
+  // 주자 상황 기반 tactic 보정 (batterState에 situation 포함 시)
+  const { bases = null, outs = -1 } = batterState.situation ?? {};
+  if (bases) {
+    // 3루 주자 + 외야 플라이 노림
+    if (bases[2] && outs < 2 && tactic === 'full_swing' && Math.random() < 0.25) {
+      tactic = 'sacrifice_fly';
+    }
+    // 바깥쪽 공 노림 (반대 방향 타구 의도)
+    if (tactic === 'full_swing' && Math.random() < 0.10) {
+      tactic = 'opposite_field';
+    }
+  }
 
   // ── 목표 타구 ──
   let targetBallResult = null;
@@ -143,6 +159,10 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
     const r = Math.random();
     if      (r < 0.3) targetBallResult = 'grounder_any';
     else if (r < 0.6) targetBallResult = 'line_drive_center';
+  } else if (tactic === 'sacrifice_fly') {
+    targetBallResult = 'deep_fly_any';
+  } else if (tactic === 'opposite_field') {
+    targetBallResult = Math.random() < 0.5 ? 'line_drive_right' : 'grounder_right';
   } else if (tactic === 'full_swing') {
     const r = Math.random();
     if      (powerNorm > 0.6 && r < 0.2)  targetBallResult = 'home_run';
@@ -152,9 +172,11 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
 
   // ── 목표 스윙 레벨 ──
   let targetSwingLevel;
-  if      (tactic === 'take')    targetSwingLevel = 0;
-  else if (tactic === 'contact') targetSwingLevel = 50 + Math.random() * 20;
-  else                           targetSwingLevel = 75 + Math.random() * 25;
+  if      (tactic === 'take')           targetSwingLevel = 0;
+  else if (tactic === 'contact')        targetSwingLevel = 50 + Math.random() * 20;
+  else if (tactic === 'sacrifice_fly')  targetSwingLevel = 55 + Math.random() * 20;
+  else if (tactic === 'opposite_field') targetSwingLevel = 50 + Math.random() * 20;
+  else                                  targetSwingLevel = 75 + Math.random() * 25;
 
   if (targetBallResult) {
     if      (targetBallResult === 'home_run')                 targetSwingLevel = clamp(targetSwingLevel + 10, 85, 100);
@@ -207,40 +229,21 @@ export function judgePitch(pitch, plan, batterState, knownPitchTypes = []) {
   let judgedPitchType;
   if (Math.random() < readProb) {
     judgedPitchType = pitchType;                                // 올바르게 읽음
-  } else if (plan.predictedPitchType && Math.random() < 0.55) {
-    judgedPitchType = plan.predictedPitchType;                  // 예측한 구종으로 오인
+  } else if (plan.predictedPitchType && Math.random() < clamp(0.45 + biasStrength * 0.35, 0.20, 0.80)) {
+    // 선입견이 강할수록(biasStrength↑) 예측 구종으로 오인할 확률 상승 (0.20 ~ 0.80)
+    judgedPitchType = plan.predictedPitchType;
   } else {
-    // 인접 구종 중 알려진 레퍼토리에 있는 것을 우선 선택
-    // 레퍼토리에 없는 구종은 매우 낮은 확률(3%)로만 인식
+    // 오인: 레퍼토리 내 인접 구종으로만 제한 (레퍼토리 외 구종은 완전 제외)
     const adj = ADJACENT_TYPES[pitchType] ?? [];
-    let candidates;
     if (hasKnown) {
-      const inRepertoire    = adj.filter(t => knownPitchTypes.includes(t));
-      const notInRepertoire = adj.filter(t => !knownPitchTypes.includes(t));
-      // 레퍼토리 외 구종 인식 확률: 약 3% (설마 저 구종을 장착했나? 수준)
-      const OUTSIDE_WEIGHT = 0.03;
-      const totalWeight = inRepertoire.length + notInRepertoire.length * OUTSIDE_WEIGHT;
-      if (totalWeight <= 0) {
-        candidates = [pitchType];
+      const inRep = adj.filter(t => knownPitchTypes.includes(t));
+      if (inRep.length > 0) {
+        judgedPitchType = inRep[Math.floor(Math.random() * inRep.length)];
       } else {
-        const r = Math.random() * totalWeight;
-        let acc = 0;
-        candidates = null;
-        for (const t of inRepertoire) {
-          acc += 1;
-          if (r < acc) { candidates = [t]; break; }
-        }
-        if (!candidates) {
-          for (const t of notInRepertoire) {
-            acc += OUTSIDE_WEIGHT;
-            if (r < acc) { candidates = [t]; break; }
-          }
-        }
-        if (!candidates) candidates = inRepertoire.length ? inRepertoire : [pitchType];
+        judgedPitchType = pitchType; // 인접 구종도 레퍼토리에 없으면 실제 구종으로
       }
-      judgedPitchType = candidates[0];
     } else {
-      judgedPitchType = adj?.length ? adj[Math.floor(Math.random() * adj.length)] : pitchType;
+      judgedPitchType = adj.length > 0 ? adj[Math.floor(Math.random() * adj.length)] : pitchType;
     }
   }
 
@@ -252,24 +255,29 @@ export function judgePitch(pitch, plan, batterState, knownPitchTypes = []) {
 
   if (plan.predictedPitchType) {
     if (judgedPitchType === plan.predictedPitchType) {
-      // 시각적으로 예측한 구종으로 인식 → 선입견 강화
-      // biasStrength > 0: 최근 예측이 맞았음 → 더 강하게 강화
-      // biasStrength < 0: 최근 예측이 틀렸음 → 강화 폭 감소
-      judgmentType = 'bias_confirmed';
-      swingMod     = 1.0 + 0.10 * (1.0 + biasStrength * 0.5);
+      if (judgedPitchType !== pitchType) {
+        // 실제와 다른 공을 예측대로 잘못 읽음 → 진짜 선입견 강화 (착각)
+        judgmentType = 'bias_confirmed';
+        swingMod     = 1.0 + 0.10 * (1.0 + biasStrength * 0.5);
+      } else {
+        // 실제 구종을 올바르게 읽었고 예측도 맞음 → 정확 판단
+        judgmentType = 'accurate_neutral';
+        swingMod     = 1.03;
+      }
     } else {
       const predictedIsFB = FASTBALL_TYPES.has(plan.predictedPitchType);
       const judgedIsFB    = FASTBALL_TYPES.has(judgedPitchType);
       if (predictedIsFB !== judgedIsFB) {
         judgmentType = 'category_confused';
-        swingMod     = 1.0 - 0.35 * (1.0 + biasStrength * 0.3);
+        swingMod     = 1.0 - 0.20 * (1.0 + biasStrength * 0.3); // calcSwingLevel에서 추가 억제
       } else {
         judgmentType = 'bias_interfered';
-        swingMod     = 1.0 - 0.15 * (1.0 + biasStrength * 0.3);
+        swingMod     = 1.0 - 0.08 * (1.0 + biasStrength * 0.3); // calcSwingLevel에서 추가 억제
       }
     }
   } else {
-    if (Math.random() < judgmentAccuracy + 0.4) {
+    // 예측구종 없음: 시각적으로 올바르게 읽었을 때만 accurate_neutral
+    if (judgedPitchType === pitchType && Math.random() < judgmentAccuracy + 0.4) {
       judgmentType = 'accurate_neutral'; swingMod = 1.03;
     } else {
       judgmentType = 'neutral'; swingMod = 1.0;
@@ -287,7 +295,14 @@ export function judgePitch(pitch, plan, batterState, knownPitchTypes = []) {
 
   // ▶ Yerkes-Dodson: 긴장할수록 위치 판단 오차 추가
   const mistakeMod   = getYerkesMistakeMod(tension);
-  const locErrorBase = (1 - eyeNorm) * 0.3 + (pitchQuality / 100) * 0.15 + mistakeMod * 0.15;
+  let locErrorBase = (1 - eyeNorm) * 0.40 + (pitchQuality / 100) * 0.15 + mistakeMod * 0.15;
+
+  // 구종 판단 성공 → 위치 오차 감소, 실패 → 오차 증가
+  if (judgedPitchType === pitchType) {
+    locErrorBase *= 0.65;
+  } else {
+    locErrorBase *= 1.40;
+  }
 
   const judgedLocation = {
     x: loc.x + gaussRandom(0, locErrorBase + locationBias),
@@ -300,6 +315,7 @@ export function judgePitch(pitch, plan, batterState, knownPitchTypes = []) {
     judgedPitchType,
     actualPitchType:   pitchType,
     predictedCorrect:  plan.predictedPitchType === pitchType,
+    wasBiasConfirmed:  judgmentType === 'bias_confirmed',
     judgedLocation,
     locationBias:      Math.round(locationBias * 100) / 100,
   };
@@ -355,20 +371,32 @@ export function calcSwingLevel(plan, judgment, overlap, swingThreshold, batterSt
 
   let rawSwingLevel = plan.targetSwingLevel;
 
-  // 1. 오버랩 신뢰도 보정
-  rawSwingLevel += (overlap - swingThreshold) * 40;
+  // 1. 오버랩 신뢰도 보정 — 계수 축소해서 극단값 방지
+  rawSwingLevel += (overlap - swingThreshold) * 22;
 
   // 2. 투구 판단 결과 보정
   rawSwingLevel *= judgment.swingMod;
 
-  // 3. ▶ Yerkes-Dodson: 20 미만/65 초과 시 스윙 레벨 저하
+  // 3. 구종/위치 판단 혼란 시 추가 억제
+  if (judgment.judgmentType === 'category_confused') {
+    rawSwingLevel *= 0.55;
+  } else if (judgment.judgmentType === 'bias_interfered') {
+    rawSwingLevel *= 0.75;
+  } else if (judgment.judgmentType === 'bias_confirmed') {
+    // 착각으로 예측 구종처럼 보였지만 실제론 다른 공
+    // 선입견으로 강하게 스윙하려 하지만 위치가 다르면 억제
+    if (judgment.locationBias > 0.08) rawSwingLevel *= 0.80;
+  }
+
+  // 4. ▶ Yerkes-Dodson
   if (tension < 20)        rawSwingLevel *= 0.90;
   else if (tension > 65)   rawSwingLevel *= (1 - (tension - 65) / 200);
 
-  // 4. 컨디션 보정
+  // 5. 컨디션 보정
   rawSwingLevel *= (0.80 + condition / 100 * 0.20);
 
-  return clamp(rawSwingLevel + gaussRandom(0, 3), 0, 100);
+  // 6. 분산 — 편차 키워서 중간값도 자주 나오게
+  return clamp(rawSwingLevel + gaussRandom(0, 8), 0, 100);
 }
 
 // ── §4-7 헛스윙 판정 ─────────────────────────────────────────────
@@ -424,7 +452,7 @@ export function calcContactQuality(swingLevel, swingType, locationError, pitchQu
   const contactNorm = norm(contact);
 
   const locationBonus = Math.max(0, 1 - locationError) * 20;
-  const pitchPenalty  = pitchQuality * 0.3;
+  const pitchPenalty  = pitchQuality * 0.18; // 기존 0.3 → 0.18 (과도한 억제 완화)
 
   let baseQuality = contactNorm * 55
                   + swingLevel  * 0.25
@@ -472,18 +500,19 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   const loc = pitch.location;
 
   // 컨택 포인트 (Yerkes-Dodson: 긴장할수록 편차 증가)
-  const spreadMod = 1 + mistakeMod * 0.6;  // 1.0 ~ 1.15
-  // loc.x 영향 강화(0.35→0.70): 몸쪽=당겨치기, 바깥=밀어치기
+  const spreadMod = 1 + mistakeMod * 0.6;
   const cx = -(loc.x / ZONE_X) * 0.70 + (1 - qualityNorm) * gaussRandom(0, 0.24 * spreadMod);
-  const cy =  gaussRandom(-0.1, 0.35)  + (1 - qualityNorm) * gaussRandom(0, 0.25 * spreadMod);
+  // cy 평균 0: 공 중앙 타격 기준. 양수=땅볼, 음수=뜬공/홈런
+  const cy =  gaussRandom(0, 0.40)  + (1 - qualityNorm) * gaussRandom(0, 0.25 * spreadMod);
 
   // ── exitVelo ──
-  const baseExitVelo = 110 + powerNorm * 65;    // 110 ~ 175 km/h
-  const swingBoost   = (swingLevel - 50) * 0.45; // -22.5 ~ +22.5
-  const qualityScale = 0.55 + qualityNorm * 0.45;
+  // power=50 기준 평균 타구속도 ~155km/h, power=80이면 ~185km/h
+  const baseExitVelo = 135 + powerNorm * 50;    // 135 ~ 185 km/h
+  const swingBoost   = (swingLevel - 50) * 0.40;
+  const qualityScale = 0.78 + qualityNorm * 0.22;
   const exitVelo     = clamp(
-    (baseExitVelo + swingBoost) * qualityScale + gaussRandom(0, 3),
-    30, 200
+    (baseExitVelo + swingBoost) * qualityScale + gaussRandom(0, 4),
+    40, 210
   );
 
   // ── launchAngle ──
@@ -493,27 +522,33 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   );
 
   // ── direction ──
-  // cx coefficient 45, 방향 분산 크게 → 파울 자주 발생
-  const dirSpread = (1 - qualityNorm) * 38 * spreadMod + 4;
-  const direction  = 90 - cx * 45 + gaussRandom(0, dirSpread);
+  // cx*30: 당겨치기/밀어치기 기본 방향, gaussRandom으로 파울 비율 조절
+  const dirSpread = (1 - qualityNorm) * 72 * spreadMod + 20;
+  const direction  = 90 - cx * 30 + gaussRandom(0, dirSpread);
 
   // ── 타구 유형 분류 ──
   // 파울라인: fieldPos(0, ...) = 3루선, fieldPos(180, ...) = 1루선
   // direction 0~180 = 페어 구역, 그 외 = 파울
   let type;
   if      (quality < 10 || direction < -10 || direction > 190) type = 'foul_back';
-  else if (direction < 0 || direction > 180)                    type = 'foul';
+  else if (direction < 30 || direction > 150)                   type = 'foul';
   else if (launchAngle < 10)                                    type = 'grounder';
   else if (launchAngle < 25)                                    type = 'line_drive';
   else if (launchAngle < 50)                                    type = 'fly_ball';
   else                                                          type = 'popup';
+
+  // foul_back 추가 판정: 늦은 스윙 or 낮은 quality → 뒤로 빠질 확률
+  if (type !== 'foul_back' && type !== 'foul') {
+    const foulBackProb = (quality < 25 ? 0.15 : 0) + (launchAngle > 70 ? 0.20 : 0);
+    if (foulBackProb > 0 && Math.random() < foulBackProb) type = 'foul_back';
+  }
 
   // ── 거리 계산 및 장타 타구 판정 ──
   // fly_ball / line_drive → 구장 담장 거리 기반으로 타구 세분화
   let estDist = null;
   let wallDist = null;
   if ((type === 'fly_ball' || type === 'line_drive') &&
-      launchAngle > 10 && direction > 15 && direction < 165) {
+      launchAngle > 10 && direction > 30 && direction < 150) {
     const v = exitVelo / 3.6;
     const rad = launchAngle * Math.PI / 180;
     // 0.60: 공기 저항 보정 계수 (진공 이론치의 약 60%)
@@ -538,6 +573,12 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
     direction:    Math.round(direction),
     estDist,
     wallDist,
+    // §4-8 스핀: cx/cy 기반 sidespin/topspin/backspin
+    spin: {
+      side:  Math.round(cx * 1000) / 1000,   // cx > 0 당겨치기 훅, cx < 0 밀어치기 슬라이스
+      top:   cy > 0 ? Math.round(cy * 100) / 100 : 0,   // 탑스핀 (땅볼 경향)
+      back:  cy < 0 ? Math.round(-cy * 100) / 100 : 0,  // 백스핀 (뜬공/홈런 경향)
+    },
     contactPoint: { cx: Math.round(cx * 100) / 100, cy: Math.round(cy * 100) / 100 },
   };
 }
@@ -547,7 +588,10 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
 function calcLocationError(judgedLoc, actualLoc) {
   const dx = judgedLoc.x - actualLoc.x;
   const dy = judgedLoc.y - actualLoc.y;
-  const judgmentError  = Math.sqrt(dx * dx + dy * dy);
-  const positionError  = Math.sqrt((actualLoc.x / ZONE_X) ** 2 + (actualLoc.y / ZONE_Y) ** 2) / 1.5;
+  const judgmentError = Math.sqrt(dx * dx + dy * dy);
+  // 존 안 공은 positionError 0 — 존 밖으로 나갈수록만 패널티
+  const outX = Math.max(0, Math.abs(actualLoc.x) - ZONE_X) / ZONE_X;
+  const outY = Math.max(0, Math.abs(actualLoc.y) - ZONE_Y) / ZONE_Y;
+  const positionError = Math.sqrt(outX ** 2 + outY ** 2) / 1.5;
   return positionError + judgmentError * 0.5;
 }

@@ -65,8 +65,7 @@ export class PitchSimulator {
     this.fatigue     = fatigue;
     this.condition   = clamp(100 - fatigue * 0.6 + gaussRandom(0, 5), 0, 100);
     this.physique    = clamp(100 - fatigue * 0.4 + gaussRandom(0, 4), 0, 100);
-    // 부정 요인 팩터 (내부 변수명 tension 유지)
-    this.tension     = clamp(30 + gaussRandom(0, 5), 0, 100);
+    this.tension     = clamp(45 + gaussRandom(0, 6), 30, 65);
     this.isExhausted = false;
 
     // 구종별 컨디션 (§3-1)
@@ -89,10 +88,42 @@ export class PitchSimulator {
     };
   }
 
+  // ── 상황 기반 tension 갱신 ────────────────────────────────────
+  // 매 투구마다 호출. 누적이 아니라 목표값으로 서서히 수렴.
+  _applySituationTension(situation, count) {
+    const { outs = 0, bases = [false, false, false], isClose = false, isLate = false } = situation;
+
+    let targetTension = 45;
+
+    const runnerCount = bases.filter(Boolean).length;
+    if (runnerCount === 3)                  targetTension += 22;
+    else if (runnerCount === 2)             targetTension += 13;
+    else if (runnerCount === 1 && bases[2]) targetTension += 16;
+    else if (runnerCount === 1 && bases[1]) targetTension += 10;
+    else if (runnerCount === 1)             targetTension += 5;
+
+    if (outs === 2)      targetTension += 7;
+    else if (outs === 0) targetTension -= 5;
+
+    if (isClose) targetTension += 8;
+    if (isLate)  targetTension += 5;
+
+    // 투수: 볼카운트 불리할수록 압박
+    if (count.balls === 3)   targetTension += 14; // 볼넷 위기
+    if (count.balls === 2)   targetTension += 6;
+    if (count.strikes === 2) targetTension -= 6;  // 투스트라이크 — 유리
+
+    targetTension = clamp(targetTension, 20, 90);
+
+    // 압박 증가: 빠르게(25%), 회복: 더 빠르게(35%)
+    const diff = targetTension - this.tension;
+    const rate = diff > 0 ? 0.25 : 0.35;
+    this.tension = clamp(this.tension + diff * rate + gaussRandom(0, 2), 0, 100);
+  }
+
   // ── §2-5 긴장도 역전 ─────────────────────────────────────────
 
-  _triggerTensionReversal() {
-    if (this.tension < 20) {
+  _triggerTensionReversal() {    if (this.tension < 20) {
       this.tension = clamp(this.tension + gaussRandom(45, 10), 55, 90);
     } else if (this.tension <= 65) {
       this.tension = clamp(this.tension + gaussRandom(10, 6), 0, 100);
@@ -110,8 +141,10 @@ export class PitchSimulator {
     const pitchType   = pitchResult.pitchType;
     const staminaNorm = norm(this.stamina);
 
-    // ── 체력 소모 (기본 0.7/구, 구수 따라 가중) ──
-    let physDrain = 0.7;
+    // ── 체력 소모 — stamina 높을수록 소모 적음 (§2-3) ──
+    // stamina=20(최저) → 기본 0.9/구, stamina=80(최고) → 기본 0.3/구
+    // stamina=50 기준 0.6/구 → 100구에 physique 40 수준
+    let physDrain = 0.3 + (1 - staminaNorm) * 0.6;
     if (this.pitchCount > 100) physDrain *= 2.0;
     else if (this.pitchCount > 80) physDrain *= 1.5;
     else if (this.pitchCount > 60) physDrain *= 1.15;
@@ -124,27 +157,59 @@ export class PitchSimulator {
 
     // ── 구종 컨디션 갱신 (§2-7) ──
     if (pitchType && this.pitchTypeCondition[pitchType] != null) {
-      const ptc    = this.pitchTypeCondition;
-      const result = pitchResult.result;
+      const ptc       = this.pitchTypeCondition;
+      const result    = pitchResult.result;
+      const loc       = pitchResult.location;
+      const target    = pitchResult.target;
+      const planZone  = pitchResult.plan?.locationZone;
+
+      // 제구 달성 여부: 목표 위치와 실제 위치의 거리
+      let commandBonus = 0;
+      if (loc && target) {
+        const dist = Math.sqrt((loc.x - target.x) ** 2 + (loc.y - target.y) ** 2);
+        if      (dist < 0.3) commandBonus =  1.5;  // 의도한 코스에 정확히 꽂힘
+        else if (dist < 0.6) commandBonus =  0.5;  // 대체로 의도한 코스
+        else if (dist > 1.2) commandBonus = -1.0;  // 목표에서 크게 벗어남
+      }
 
       if (battingResult) {
         if (battingResult.result === 'whiff') {
-          ptc[pitchType] = clamp(ptc[pitchType] + 3.0, 40, 100);
+          // 헛스윙 유도 — 가장 긍정적
+          ptc[pitchType] = clamp(ptc[pitchType] + 3.0 + commandBonus, 40, 100);
         } else if (battingResult.action === 'take' && result === 'called_strike') {
-          ptc[pitchType] = clamp(ptc[pitchType] + 1.0, 40, 100);
+          // 루킹 스트라이크
+          ptc[pitchType] = clamp(ptc[pitchType] + 1.0 + commandBonus, 40, 100);
         } else if (battingResult.result === 'contact') {
           const t = battingResult.type;
-          if      (t === 'foul' || t === 'foul_back') ptc[pitchType] = clamp(ptc[pitchType] + 1.5, 40, 100);
-          else if (t === 'home_run') {
+          if (t === 'foul' || t === 'foul_back') {
+            // 파울 유도 — 소폭 긍정
+            ptc[pitchType] = clamp(ptc[pitchType] + 1.5 + commandBonus, 40, 100);
+          } else if (t === 'home_run') {
             ptc[pitchType] = clamp(ptc[pitchType] - 6.0, 40, 100);
             this.tension   = clamp(this.tension + 15, 0, 100);
             this.condition = clamp(this.condition - 2.0, 0, 100);
+          } else if (t === 'line_drive') {
+            ptc[pitchType] = clamp(ptc[pitchType] - 4.0, 40, 100);
+          } else if (t === 'deep_fly') {
+            ptc[pitchType] = clamp(ptc[pitchType] - 2.5, 40, 100);
+          } else if (t === 'fly_ball') {
+            ptc[pitchType] = clamp(ptc[pitchType] - 1.5, 40, 100);
+          } else if (t === 'grounder') {
+            // 땅볼은 중립~소폭 감소 (제구 달성 여부로 결정)
+            ptc[pitchType] = clamp(ptc[pitchType] - 0.5 + commandBonus, 40, 100);
+          } else if (t === 'popup') {
+            // 팝업은 긍정
+            ptc[pitchType] = clamp(ptc[pitchType] + 1.0 + commandBonus, 40, 100);
           }
-          else if (t === 'line_drive')                   ptc[pitchType] = clamp(ptc[pitchType] - 4.0, 40, 100);
-          else if (t === 'grounder' || t === 'fly_ball') ptc[pitchType] = clamp(ptc[pitchType] - 1.0, 40, 100);
         }
       } else {
-        if (result === 'ball') ptc[pitchType] = clamp(ptc[pitchType] - 1.5, 40, 100);
+        // 타격 결과 없음 (비정상 투구 등)
+        if (result === 'ball') {
+          // 의도한 유인구(waste)면 볼이어도 감소 없음
+          if (planZone !== 'waste') {
+            ptc[pitchType] = clamp(ptc[pitchType] - 1.5 + commandBonus, 40, 100);
+          }
+        }
       }
     }
 
@@ -204,6 +269,9 @@ export class PitchSimulator {
 
   simulate(count, situation = {}, feedback = null) {
     this.pitchCount++;
+
+    // 상황 기반 tension 갱신 (매 투구마다)
+    this._applySituationTension(situation, count);
 
     const plan = this.planPitch(count, situation, feedback);
 
@@ -277,6 +345,13 @@ export class PitchSimulator {
   /** 타격 결과를 받아 볼데드 피드백 적용 (외부 호출용) */
   applyBattingFeedback(pitchResult, battingResult) {
     this._applyBallDeadFeedback(pitchResult, battingResult);
+  }
+
+  /** 이닝 종료 시 tension 회복 */
+  onInningEnd() {
+    // 이닝 사이 휴식 — tension을 최적 구간(45) 방향으로 회복
+    const recovery = (45 - this.tension) * 0.4 + gaussRandom(0, 3);
+    this.tension = clamp(this.tension + recovery, 20, 80);
   }
 
   reset() {

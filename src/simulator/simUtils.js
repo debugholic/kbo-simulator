@@ -51,17 +51,17 @@ export const BALL_R = 0.17;  // 공 반경 (판정 오차 여유)
 // getYerkesFactor() 또는 getYerkesMistakeMod()를 적용해야 합니다.
 
 /**
- * 긴장도 → 실수 가중치 (0 = 최적, 0.25 = 최악)
+ * 긴장도 → 실수 가중치 (0 = 최적, 0.12 = 최악)
+ * 영향을 너무 빈번하게 주지 않도록 최대치 축소
  */
 export function getYerkesMistakeMod(tension) {
-  if (tension < 20)  return (20 - tension)  / 20 * 0.25;
-  if (tension > 65)  return (tension - 65)  / 35 * 0.25;
+  if (tension < 20)  return (20 - tension)  / 20 * 0.12;
+  if (tension > 65)  return (tension - 65)  / 35 * 0.12;
   return 0;
 }
 
 /**
- * 긴장도 → 효율 팩터 (1.0 = 최적, 0.75 = 최악)
- * quality, velo, contactRate 등에 곱해서 사용.
+ * 긴장도 → 효율 팩터 (1.0 = 최적, 0.88 = 최악)
  */
 export function getYerkesFactor(tension) {
   return 1.0 - getYerkesMistakeMod(tension);
@@ -69,10 +69,9 @@ export function getYerkesFactor(tension) {
 
 /**
  * 긴장도 → 오차 팩터 (0 = 최적, +α = 오차 증폭)
- * controlRadius, locationError 등에 더해서 사용.
  */
 export function getYerkesErrorMod(tension) {
-  return getYerkesMistakeMod(tension) * 0.4;  // 0 ~ 0.10 추가 오차
+  return getYerkesMistakeMod(tension) * 0.4;  // 0 ~ 0.05 추가 오차
 }
 
 // ── 구종 분류 ─────────────────────────────────────────────────────

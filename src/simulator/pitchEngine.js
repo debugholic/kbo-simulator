@@ -30,18 +30,18 @@ const COUNT_FB_BIAS = {
 };
 
 const COUNT_LOCATION_STRATEGY = {
-  '0-0': { zoneProb: 0.60, edgeProb: 0.30 },
-  '0-1': { zoneProb: 0.50, edgeProb: 0.30 },
-  '0-2': { zoneProb: 0.20, edgeProb: 0.30 },
-  '1-0': { zoneProb: 0.65, edgeProb: 0.25 },
-  '1-1': { zoneProb: 0.55, edgeProb: 0.30 },
-  '1-2': { zoneProb: 0.35, edgeProb: 0.35 },
-  '2-0': { zoneProb: 0.75, edgeProb: 0.20 },
-  '2-1': { zoneProb: 0.60, edgeProb: 0.30 },
-  '2-2': { zoneProb: 0.50, edgeProb: 0.35 },
-  '3-0': { zoneProb: 0.85, edgeProb: 0.10 },
-  '3-1': { zoneProb: 0.70, edgeProb: 0.25 },
-  '3-2': { zoneProb: 0.60, edgeProb: 0.30 },
+  '0-0': { zoneProb: 0.62, edgeProb: 0.27 },
+  '0-1': { zoneProb: 0.54, edgeProb: 0.27 },
+  '0-2': { zoneProb: 0.24, edgeProb: 0.24 },
+  '1-0': { zoneProb: 0.67, edgeProb: 0.24 },
+  '1-1': { zoneProb: 0.58, edgeProb: 0.27 },
+  '1-2': { zoneProb: 0.38, edgeProb: 0.32 },
+  '2-0': { zoneProb: 0.76, edgeProb: 0.19 },
+  '2-1': { zoneProb: 0.63, edgeProb: 0.25 },
+  '2-2': { zoneProb: 0.53, edgeProb: 0.32 },
+  '3-0': { zoneProb: 0.85, edgeProb: 0.11 },
+  '3-1': { zoneProb: 0.73, edgeProb: 0.21 },
+  '3-2': { zoneProb: 0.63, edgeProb: 0.27 },
 };
 
 // ── 존 가장자리 최근접점 ──────────────────────────────────────────
@@ -234,7 +234,12 @@ export function generatePitchQuality(pitcherState, pitchType, attrs) {
              + attributesMod * 0.15;
 
   // ▶ Yerkes-Dodson: 체력 × 긴장도 효율 팩터
-  const physiqueMod  = isExhausted ? 0.55 : lerp(0.75, 1.0, physique / 100);
+  // physique 낮아질수록 퀄리티 저하 가속 (비선형)
+  // physique=100 → 1.0, physique=50 → ~0.82, physique=20 → ~0.55 (지침 진입)
+  // physique < 20 → 지침 상태로 고정 0.45
+  const physiqueMod = physique < 20
+    ? 0.45
+    : 1.0 - Math.pow((100 - physique) / 100, 1.8) * 0.55;
   const tensionFactor = getYerkesFactor(tension);   // 1.0 ~ 0.75
   const multiplier   = physiqueMod * tensionFactor;
 
@@ -298,29 +303,30 @@ export function executePitch(plan, qualityData, pitcherState, stamina) {
   const errorMod       = getYerkesErrorMod(tension);      // 0 ~ 0.10
 
   // ── 구속 (§3-8) ──
-  // Yerkes-Dodson: 긴장할수록 tensionFactor만큼 구속 미세 감소
-  const fatigueDrop = Math.max(0, (pitchCount - 70) / 30) * (1 - norm(stamina) * 0.6);
-  const veloBase    = targetVelo * (0.85 + pitchQuality / 100 * 0.15) * tensionFactor;
-  const velocity    = Math.round(
-    (veloBase - fatigueDrop * 2 + gaussRandom(0, 1.2)) * 10
-  ) / 10;
+  // targetVelo = 평균 구속. 자연 편차 ±3.5km/h
+  // 피로/긴장으로 평균 구속 자체가 최대 -5km/h 하락
+  const fatigueDrop = Math.max(0, (pitchCount - 70) / 30) * (1 - norm(stamina) * 0.6) * 1.5;
+  const tensionDrop = Math.max(0, (tension - 65) / 35) * 1.5;
+  const avgVelo     = targetVelo - Math.min(5, fatigueDrop + tensionDrop); // 평균 구속 하락 최대 -5
+  const velocity    = Math.round((avgVelo + gaussRandom(0, 3.5)) * 10) / 10;
 
   // ── Control → 도달 범위 (§3-8) ──
   // Yerkes-Dodson: 긴장할수록 controlRadius 증가 (errorMod 추가)
   const controlEffective = controlNorm * conditionMod * (isExhausted ? 0.7 : 1.0);
-  const controlRadius    = (2.5 - controlEffective * 2.0) * (1 + mistakeMod * 0.5);
-  // control 80 정상 → 0.5, 최악 긴장 → 0.5*1.125 = 0.56
-  // control 20 정상 → 2.5, 최악 긴장 → 2.5*1.125 = 2.81
+  const controlRadius    = (2.5 - controlEffective * 2.0) * (1 + mistakeMod * 1.2);
+  // control 80 정상 → 0.5, 최악 긴장(mistakeMod=0.12) → 0.5*1.144 = 0.57
+  // control 50 정상 → 1.5, 최악 긴장 → 1.5*1.144 = 1.72
+  // control 20 정상 → 2.5, 최악 긴장 → 2.5*1.144 = 2.86
 
   const rawLocation = {
-    x: gaussRandom(target.x, controlRadius * 0.4 + errorMod),
-    y: gaussRandom(target.y, controlRadius * 0.4 + errorMod),
+    x: gaussRandom(target.x, controlRadius * 0.59 + errorMod),
+    y: gaussRandom(target.y, controlRadius * 0.59 + errorMod),
   };
 
   // ── Command → 존 가장자리 인력 (§3-8) ──
   // Yerkes-Dodson: 긴장할수록 pullStrength 감소 (커맨드 약해짐)
   const commandEffective = commandNorm * conditionMod;
-  const pullStrength     = commandEffective * 0.45 * (1 - mistakeMod * 0.4);
+  const pullStrength     = commandEffective * 0.45 * (1 - mistakeMod * 0.8);
 
   const edgePoint = nearestZoneEdgePoint(rawLocation.x, rawLocation.y);
   const finalLocation = {
@@ -354,10 +360,9 @@ export function executePitch(plan, qualityData, pitcherState, stamina) {
 
 export function classifyPitch(location) {
   const { x, y } = location;
-  const umpX = gaussRandom(0, 0.06);
-  const umpY = gaussRandom(0, 0.06);
-  const inZone = Math.abs(x) <= (ZONE_X + BALL_R + umpX)
-              && Math.abs(y) <= (ZONE_Y + BALL_R + umpY);
+  // ABS (자동 볼-스트라이크 판정) — 오차 없이 존 경계 + 공 반경으로 정확 판정
+  const inZone = Math.abs(x) <= (ZONE_X + BALL_R)
+              && Math.abs(y) <= (ZONE_Y + BALL_R);
   return inZone ? 'called_strike' : 'ball';
 }
 
