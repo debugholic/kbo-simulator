@@ -141,17 +141,6 @@ export class PitchSimulator {
     const pitchType   = pitchResult.pitchType;
     const staminaNorm = norm(this.stamina);
 
-    // ── 체력 소모 — stamina 높을수록 소모 적음 (§2-3) ──
-    // stamina=20(최저) → 기본 0.9/구, stamina=80(최고) → 기본 0.3/구
-    // stamina=50 기준 0.6/구 → 100구에 physique 40 수준
-    let physDrain = 0.3 + (1 - staminaNorm) * 0.6;
-    if (this.pitchCount > 100) physDrain *= 2.0;
-    else if (this.pitchCount > 80) physDrain *= 1.5;
-    else if (this.pitchCount > 60) physDrain *= 1.15;
-
-    this.physique    = clamp(this.physique - physDrain, 0, 100);
-    this.isExhausted = this.physique < 25;
-
     // ── 컨디션 미량 감소 ──
     this.condition = clamp(this.condition - 0.15 - this.fatigue * 0.002, 0, 100);
 
@@ -269,6 +258,15 @@ export class PitchSimulator {
 
   simulate(count, situation = {}, feedback = null) {
     this.pitchCount++;
+
+    // ── 매 투구마다 체력 소모 ──
+    const staminaNorm = norm(this.stamina);
+    let physDrain = 0.3 + (1 - staminaNorm) * 0.6;
+    if (this.pitchCount > 100) physDrain *= 2.0;
+    else if (this.pitchCount > 80) physDrain *= 1.5;
+    else if (this.pitchCount > 60) physDrain *= 1.15;
+    this.physique    = clamp(this.physique - physDrain, 0, 100);
+    this.isExhausted = this.physique < 25;
 
     // 상황 기반 tension 갱신 (매 투구마다)
     this._applySituationTension(situation, count);
