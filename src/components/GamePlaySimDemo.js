@@ -262,6 +262,16 @@ function FieldView({ battedBalls, lastBatting }) {
     let toX, toY;
     if (lastBatting.type === 'foul_back') {
       toX = FHX; toY = FHY + 14;
+    } else if (lastBatting.type === 'foul') {
+      // 파울: direction 기준으로 3루쪽(0~45°) 또는 1루쪽(135~180°) 파울 구역에 표시
+      const dir = lastBatting.direction ?? 90;
+      if (dir < 90) {
+        // 3루 파울선 바깥
+        toX = FL3.fx - 20; toY = FL3.fy + 10;
+      } else {
+        // 1루 파울선 바깥
+        toX = FL1.fx + 20; toY = FL1.fy + 10;
+      }
     } else {
       const p = fieldPos(lastBatting.direction, dist);
       toX = p.fx; toY = p.fy;
@@ -339,6 +349,12 @@ function FieldView({ battedBalls, lastBatting }) {
     if (!dist) return null;
     if (lastBatting.type === 'foul_back') {
       return { fx: FHX, fy: FHY + 14, type: lastBatting.type, dist };
+    }
+    if (lastBatting.type === 'foul') {
+      const dir = lastBatting.direction ?? 90;
+      return dir < 90
+        ? { fx: FL3.fx - 20, fy: FL3.fy + 10, type: lastBatting.type, dist }
+        : { fx: FL1.fx + 20, fy: FL1.fy + 10, type: lastBatting.type, dist };
     }
     return { ...fieldPos(lastBatting.direction, dist), type: lastBatting.type, dist };
   }, [lastBatting]);
