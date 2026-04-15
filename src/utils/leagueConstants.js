@@ -43,9 +43,9 @@ export const LEAGUE_SCORE_FLOOR = {
 // ── 랜덤 생성 능력치 범위 (foreignPlayerGen 용) ──────────────────
 // stuff / command / control 기대값 범위 [min, max]
 export const LEAGUE_BASE = {
-  MLB:      { stuff: [58, 78], command: [53, 74], control: [53, 72] },
-  AAA:      { stuff: [48, 72], command: [45, 68], control: [45, 66] },
-  NPB:      { stuff: [45, 70], command: [45, 68], control: [45, 66] },
+  MLB:      { stuff: [54, 72], command: [50, 68], control: [50, 66] },
+  AAA:      { stuff: [44, 65], command: [42, 62], control: [42, 60] },
+  NPB:      { stuff: [42, 67], command: [42, 65], control: [42, 65] },
   CPBL:     { stuff: [42, 65], command: [42, 63], control: [42, 61] },
   NPB_FARM: { stuff: [41, 63], command: [41, 61], control: [41, 59] }, // CPBL~ABL 사이
   ABL:      { stuff: [38, 60], command: [38, 58], control: [38, 56] },
