@@ -159,14 +159,15 @@ export function generateForeignPitcher(sourceLeague = 'AAA', role = 'SP', hintPo
   const noiseRange = (100 - scoutAccuracy) / 100 * 15; // 최대 ±15
 
   // 스카우팅된 능력치 (노이즈 반영 — 영입 시 보이는 값)
-  const scoutedStuff   = clamp(trueStuff   + rand(-noiseRange, noiseRange));
-  const scoutedCommand = clamp(trueCommand + rand(-noiseRange, noiseRange));
-  const scoutedControl = clamp(trueControl + rand(-noiseRange, noiseRange));
+  const scoutedStuff   = clamp(trueStuff   + rand(-noiseRange * 1.2, noiseRange * 0.8));
+  const scoutedCommand = clamp(trueCommand + rand(-noiseRange * 1.2, noiseRange * 0.8));
+  const scoutedControl = clamp(trueControl + rand(-noiseRange * 1.2, noiseRange * 0.8));
 
   // KBO 적합도 (스카우팅된 능력치 기반)
+  const rawFit = 50 + (scoutedStuff - 50) * 0.6 + (scoutedControl - 50) * 0.4 + rand(-4, 4);
+
   const kboFit = clamp(
-    50 + (scoutedStuff - 50) * 0.6 + (scoutedControl - 50) * 0.4 + rand(-5, 5),
-    0, 100
+    50 + (rawFit - 50) * 0.85
   );
 
   // ── 직전 리그 성적 (스카우팅 가능 정보) ──

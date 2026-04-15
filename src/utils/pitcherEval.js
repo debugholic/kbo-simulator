@@ -699,9 +699,9 @@ export function evaluateForeignSignee(baseEval, sourceLeague) {
     : eliteRoll < adjSProb + 0.075                  ? 2  // A급 7.5%
     : eliteRoll < adjSProb + 0.075 + 0.15           ? 1  // B급 15%
     : 0;
-  const eliteBonus = eliteTier === 3 ? rand(12, 18)
-    : eliteTier === 2 ? rand(6, 12)
-    : eliteTier === 1 ? rand(2, 6)
+  const eliteBonus = eliteTier === 3 ? rand(8, 14)
+    : eliteTier === 2 ? rand(4, 8)
+    : eliteTier === 1 ? rand(1, 4)
     : 0;
 
   const ability = {};
