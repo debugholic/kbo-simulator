@@ -92,14 +92,18 @@ export const PITCH_TYPE_LABELS = {
 };
 
 export const BATTED_BALL_LABELS = {
-  'take':       '노스윙',
-  'whiff':      '헛스윙',
-  'foul':       '파울',
-  'foul_back':  '뒤파울',
-  'grounder':   '땅볼',
-  'line_drive': '직선타',
-  'fly_ball':   '뜬공',
-  'deep_fly':   '깊은뜬공',
-  'popup':      '팝업',
-  'home_run':   '홈런',
+  'take':             '노스윙',
+  'whiff':            '헛스윙',
+  'foul':             '파울',
+  'foul_back':        '뒤파울',
+  'weak_grounder':    '약한땅볼',
+  'grounder':         '땅볼',
+  'hard_grounder':    '강한땅볼',
+  'weak_line_drive':  '약한직선타',
+  'line_drive':       '직선타',
+  'barrel_line_drive':'배럴직선타',
+  'fly_ball':         '뜬공',
+  'deep_fly':         '깊은뜬공',
+  'popup':            '팝업',
+  'home_run':         '홈런',
 };

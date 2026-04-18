@@ -273,17 +273,19 @@ export class BattingSimulator {
       if (type === 'home_run') {
         this.tension   = clamp(this.tension - 15, 0, 100);
         this.condition = clamp(this.condition + 5.0, 0, 100);
-      } else if (type === 'line_drive') {
+      } else if (type === 'barrel_line_drive') {
+        this.tension   = clamp(this.tension - 8, 0, 100);
+        this.condition = clamp(this.condition + 2.0, 0, 100);
+      } else if (type === 'line_drive' || type === 'weak_line_drive') {
         this.tension   = clamp(this.tension - 5, 0, 100);
         this.condition = clamp(this.condition + 1.0, 0, 100);
-      } else if (type === 'grounder') {
+      } else if (type === 'hard_grounder' || type === 'grounder') {
         this.tension   = clamp(this.tension - 3, 0, 100);
         this.condition = clamp(this.condition + 0.5, 0, 100);
-      } else if (type === 'deep_fly' || type === 'fly_ball') {
-        this.tension   = clamp(this.tension + 2, 0, 100);
+      } else if (type === 'weak_grounder' || type === 'fly_ball' || type === 'deep_fly') {
+        // 인플레이는 됐지만 기대 이하 — 변화 없음
       } else if (type === 'popup') {
-        this.tension   = clamp(this.tension + 5, 0, 100);
-        this.condition = clamp(this.condition - 0.5, 0, 100);
+        this.tension = clamp(this.tension + 3, 0, 100);
       }
     } else if (action === 'swing' && result === 'whiff') {
       this.tension   = clamp(this.tension + 8, 0, 100);

@@ -526,16 +526,20 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   const dirSpread = (1 - qualityNorm) * 72 * spreadMod + 20;
   const direction  = 90 - cx * 30 + gaussRandom(0, dirSpread);
 
-  // ── 타구 유형 분류 ──
-  // 파울라인: fieldPos(0, ...) = 3루선, fieldPos(180, ...) = 1루선
-  // direction 0~180 = 페어 구역, 그 외 = 파울
+  // ── 타구 유형 분류 (서브타입 포함) ──
   let type;
-  if      (quality < 10 || direction < -10 || direction > 190) type = 'foul_back';
-  else if (direction < 30 || direction > 150)                   type = 'foul';
-  else if (launchAngle < 10)                                    type = 'grounder';
-  else if (launchAngle < 25)                                    type = 'line_drive';
-  else if (launchAngle < 50)                                    type = 'fly_ball';
-  else                                                          type = 'popup';
+  if      (quality < 10 || direction < -8 || direction > 188)  type = 'foul_back';
+  else if (direction < 42 || direction > 138)                   type = 'foul';
+  else if (launchAngle < 10) {
+    if      (exitVelo < 110) type = 'weak_grounder';
+    else if (exitVelo > 140) type = 'hard_grounder';
+    else                     type = 'grounder';
+  } else if (launchAngle < 25) {
+    if      (exitVelo < 110) type = 'weak_line_drive';
+    else if (exitVelo > 160) type = 'barrel_line_drive';
+    else                     type = 'line_drive';
+  } else if (launchAngle < 50)  type = 'fly_ball';
+  else                          type = 'popup';
 
   // foul_back 추가 판정: 늦은 스윙 or 낮은 quality → 뒤로 빠질 확률
   if (type !== 'foul_back' && type !== 'foul') {
@@ -544,26 +548,23 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   }
 
   // ── 거리 계산 및 장타 타구 판정 ──
-  // fly_ball / line_drive → 구장 담장 거리 기반으로 타구 세분화
+  // fly_ball / line_drive 계열 → 구장 담장 거리 기반으로 deep_fly / home_run 승격
   let estDist = null;
   let wallDist = null;
-  if ((type === 'fly_ball' || type === 'line_drive') &&
-      launchAngle > 10 && direction > 30 && direction < 150) {
+  const isAirball = type === 'fly_ball'
+    || type === 'line_drive' || type === 'weak_line_drive' || type === 'barrel_line_drive';
+  if (isAirball && launchAngle > 10 && direction > 30 && direction < 150) {
     const v = exitVelo / 3.6;
     const rad = launchAngle * Math.PI / 180;
-    // 0.60: 공기 저항 보정 계수 (진공 이론치의 약 60%)
     estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.60);
 
     wallDist = getWallDistance(stadiumKey, direction);
 
     if (estDist >= wallDist) {
-      // 담장 너머 → 홈런
       type = 'home_run';
     } else if (estDist >= wallDist - 18) {
-      // 담장 18m 이내 → 깊은 외야 (담장 직격 / 희생플라이 등)
       type = 'deep_fly';
     }
-    // estDist < wallDist - 18: 일반 fly_ball 유지
   }
 
   return {

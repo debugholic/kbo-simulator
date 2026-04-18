@@ -66,7 +66,36 @@ export function createGameState() {
   };
 }
 
-// ── 인플레이 타구 판정 (수비 메커니즘 없이 확률 기반) ──────────────
+// ── 인플레이 타구 판정 ────────────────────────────────────────────
+//
+// 리그 평균 수비가 정상 수행된다는 전제 하에,
+// 서브타입별 BABIP 테이블로 안타/아웃/장타를 판정한다.
+// (SPEC-범타처리-수비시스템 v1.1.0 §2 참조)
+
+// [단타확률, 2루타확률, 3루타확률] — 합계 = hitProb
+const HIT_TABLE = {
+  weak_grounder:     [0.120, 0.000, 0.000],
+  grounder:          [0.200, 0.040, 0.000],
+  hard_grounder:     [0.260, 0.070, 0.010],
+  weak_line_drive:   [0.520, 0.030, 0.000],
+  line_drive:        [0.480, 0.210, 0.030],
+  barrel_line_drive: [0.450, 0.380, 0.070],
+  fly_ball:          [0.110, 0.020, 0.000],
+  popup:             [0.020, 0.000, 0.000],
+};
+
+// 병살 확률 — 1루 주자 + 0·1아웃 조건일 때만 적용
+const DP_PROB = {
+  weak_grounder: 0.08,
+  grounder:      0.22,
+  hard_grounder: 0.12,
+};
+
+const OUT_DESC = {
+  weak_grounder: '약한 땅볼 아웃', grounder: '땅볼 아웃', hard_grounder: '강한 땅볼 아웃',
+  weak_line_drive: '라이너 아웃', line_drive: '라이너 아웃', barrel_line_drive: '라이너 아웃',
+  fly_ball: '뜬공 아웃', popup: '팝플라이 아웃',
+};
 
 /**
  * @param {Object} bat  — BattingSimulator.simulate() 결과 (result === 'contact')
@@ -75,116 +104,86 @@ export function createGameState() {
  * @returns {{ result, hitType?, runsScored, desc, basesAfter, outsAdded }}
  */
 export function judgeInPlay(bat, bases, outs) {
-  const { type, quality, exitVelo, estDist, wallDist } = bat;
+  const { type, quality, estDist, wallDist } = bat;
   const q = quality / 100;
-  const r = Math.random();
 
+  // 홈런
   if (type === 'home_run') {
     const runnersOn = bases.filter(Boolean).length;
     return {
-      result:     'home_run',
-      hitType:    'home_run',
-      outsAdded:  0,
-      runsScored: 1 + runnersOn,
-      desc:       `홈런! (${1 + runnersOn}점)`,
+      result: 'home_run', hitType: 'home_run',
+      outsAdded: 0, runsScored: 1 + runnersOn,
+      desc: `홈런! (${1 + runnersOn}점)`,
       basesAfter: [false, false, false],
     };
   }
 
-  if (type === 'popup') {
-    return { result: 'out', outType: 'popup', outsAdded: 1, runsScored: 0, desc: '팝플라이 아웃', basesAfter: [...bases] };
-  }
-
-  if (type === 'grounder') {
-    // 병살 조건: 1루 주자 + 1아웃 미만
-    const dpPossible = bases[0] && outs < 2 && q < 0.55;
-    if (dpPossible && r < 0.30) {
-      const newBases = [...bases];
-      newBases[0] = false;
-      return { result: 'out', outType: 'dp', outsAdded: 2, runsScored: 0, desc: '병살타', basesAfter: newBases };
-    }
-    const hitProb = 0.14 + q * 0.11;  // 14~25%
-    if (r < hitProb) {
-      const { newBases, runs } = advanceBases([...bases], 'single');
-      return { result: 'hit', hitType: 'single', outsAdded: 0, runsScored: runs, desc: `안타 (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-    }
-    const newBases = advanceOnGroundOut([...bases], outs);
-    return { result: 'out', outType: 'grounder', outsAdded: 1, runsScored: 0, desc: '땅볼 아웃', basesAfter: newBases };
-  }
-
-  if (type === 'line_drive') {
-    const hitProb = 0.60 + q * 0.10;  // 60~70%
-    if (r < hitProb) {
-      const doubleProb = Math.min(0.50, 0.22 + q * 0.20 + Math.max(0, (exitVelo - 100) / 350));
-      const isDouble = Math.random() < doubleProb;
-      const isTriple = isDouble && Math.random() < 0.08;
-      if (isTriple) {
-        const { newBases, runs } = advanceBases([...bases], 'triple');
-        return { result: 'hit', hitType: 'triple', outsAdded: 0, runsScored: runs, desc: `3루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-      }
-      if (isDouble) {
-        const { newBases, runs } = advanceBases([...bases], 'double');
-        return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-      }
-      const { newBases, runs } = advanceBases([...bases], 'single');
-      return { result: 'hit', hitType: 'single', outsAdded: 0, runsScored: runs, desc: `안타 (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-    }
-    return { result: 'out', outType: 'line_drive', outsAdded: 1, runsScored: 0, desc: '라이너 아웃', basesAfter: [...bases] };
-  }
-
+  // 깊은 외야 — 구장 담장 거리 기반 세분 판정
   if (type === 'deep_fly') {
-    // 깊은 외야 타구 (담장 18m 이내): 홈런성이지만 다양한 결과
-    const dist = estDist ?? 78;
-    const wDist = wallDist ?? 100;
+    return judgeDeepFly(estDist ?? 78, wallDist, bases, outs, q);
+  }
 
-    // 담장 5m 이내: 담장 직격 타구
-    if (dist >= wDist - 5) {
-      const wallDouble = Math.random() < 0.55;
-      if (wallDouble) {
-        const { newBases, runs } = advanceBases([...bases], 'double');
-        return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `담장 직격 2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-      }
-      return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `담장 앞 외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
+  // 땅볼 계열 — 병살 먼저 판정
+  if (type in DP_PROB) {
+    if (bases[0] && outs < 2 && Math.random() < DP_PROB[type]) {
+      const nb = [...bases]; nb[0] = false;
+      return { result: 'out', outType: 'dp', outsAdded: 2, runsScored: 0, desc: '병살타', basesAfter: nb };
     }
-    // 담장 12m 이내: 깊은 외야 → 희생플라이 확률 높음
-    if (dist >= wDist - 12) {
-      if (bases[2] && outs < 2 && Math.random() < 0.70) {
-        const nb = [...bases]; nb[2] = false;
-        return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: `깊은 외야 플라이 희생타 (${dist}m, 1타점)`, basesAfter: nb };
-      }
-      return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `깊은 외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
+    const groundOutBases = advanceOnGroundOut([...bases], outs);
+    return judgeByTable(type, bases, groundOutBases);
+  }
+
+  // 라인드라이브·플라이·팝업
+  return judgeByTable(type, bases, [...bases]);
+}
+
+/** HIT_TABLE 기반 안타/아웃 판정 */
+function judgeByTable(type, bases, outBases) {
+  const [singleP, doubleP, tripleP] = HIT_TABLE[type] ?? [0, 0, 0];
+  const r = Math.random();
+
+  if (r < tripleP) {
+    const { newBases, runs } = advanceBases([...bases], 'triple');
+    return { result: 'hit', hitType: 'triple', outsAdded: 0, runsScored: runs, desc: `3루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
+  }
+  if (r < tripleP + doubleP) {
+    const { newBases, runs } = advanceBases([...bases], 'double');
+    return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
+  }
+  if (r < tripleP + doubleP + singleP) {
+    const { newBases, runs } = advanceBases([...bases], 'single');
+    return { result: 'hit', hitType: 'single', outsAdded: 0, runsScored: runs, desc: `안타 (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
+  }
+
+  return { result: 'out', outType: type, outsAdded: 1, runsScored: 0, desc: OUT_DESC[type] ?? '아웃', basesAfter: outBases };
+}
+
+/** deep_fly 거리 기반 세분 판정 — wallDist 기준 상대거리 사용 (SPEC §2-3) */
+function judgeDeepFly(dist, wallDist, bases, outs, q) {
+  const wDist = wallDist ?? 100;
+
+  // 담장 5m 이내: 담장 직격 타구
+  if (dist >= wDist - 5) {
+    if (Math.random() < 0.55) {
+      const { newBases, runs } = advanceBases([...bases], 'double');
+      return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `담장 직격 2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
     }
-    // 담장 18m 이내: 중간 깊이 외야 → 일반 희생플라이 확률
-    if (bases[2] && outs < 2 && q > 0.35 && Math.random() < 0.55) {
+    return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `담장 앞 외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
+  }
+  // 담장 12m 이내: 희생플라이 확률 높음
+  if (dist >= wDist - 12) {
+    if (bases[2] && outs < 2 && Math.random() < 0.65) {
       const nb = [...bases]; nb[2] = false;
-      return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: `외야 희생 플라이 (${dist}m, 1타점)`, basesAfter: nb };
+      return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: `깊은 외야 희비 (${dist}m, 1타점)`, basesAfter: nb };
     }
-    return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
+    return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `깊은 외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
   }
-
-  if (type === 'fly_ball') {
-    // 일반 외야 플라이 (estDist < 72m)
-    if (bases[2] && outs < 2 && q > 0.35 && Math.random() < 0.55) {
-      const newBases = [...bases];
-      newBases[2] = false;
-      return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: '희생 플라이 (1타점)', basesAfter: newBases };
-    }
-    const hitProb = 0.12 + q * 0.16;  // 12~28% (장타 가능)
-    if (r < hitProb) {
-      // 2루타: quality + exitVelo 기반 (50레벨 ≈110 km/h → ~15%, 70레벨 ≈125 → ~22%)
-      const doubleProb = Math.min(0.45, 0.05 + q * 0.15 + Math.max(0, (exitVelo - 100) / 400));
-      const isDouble = Math.random() < doubleProb;
-      if (isDouble) {
-        const { newBases, runs } = advanceBases([...bases], 'double');
-        return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-      }
-      const { newBases, runs } = advanceBases([...bases], 'single');
-      return { result: 'hit', hitType: 'single', outsAdded: 0, runsScored: runs, desc: `안타 (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
-    }
-    return { result: 'out', outType: 'fly_ball', outsAdded: 1, runsScored: 0, desc: '뜬공 아웃', basesAfter: [...bases] };
+  // 담장 18m 이내: 일반 희생플라이 확률
+  if (bases[2] && outs < 2 && q > 0.35 && Math.random() < 0.50) {
+    const nb = [...bases]; nb[2] = false;
+    return { result: 'sac_fly', outsAdded: 1, runsScored: 1, desc: `외야 희비 (${dist}m, 1타점)`, basesAfter: nb };
   }
-
-  return { result: 'out', outType: 'unknown', outsAdded: 1, runsScored: 0, desc: '아웃', basesAfter: [...bases] };
+  return { result: 'out', outType: 'deep_fly', outsAdded: 1, runsScored: 0, desc: `외야 플라이 아웃 (${dist}m)`, basesAfter: [...bases] };
 }
 
 // ── 주루 시뮬레이션 ───────────────────────────────────────────────

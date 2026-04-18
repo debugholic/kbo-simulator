@@ -56,8 +56,10 @@ const B3 = fieldPos(0, BASE_D);   const MOUND = fieldPos(90, 18.4);
 const FL3 = fieldPos(0, 118);     const FL1 = fieldPos(180, 118);
 
 const BATTED_BALL_COLORS = {
-  grounder: '#FFA726', line_drive: '#66BB6A',
-  fly_ball: '#42A5F5', deep_fly: '#1565C0', popup: '#9E9E9E', home_run: '#FF6F00',
+  weak_grounder:    '#FFE082', grounder: '#FFA726', hard_grounder: '#E65100',
+  weak_line_drive:  '#A5D6A7', line_drive: '#66BB6A', barrel_line_drive: '#1B5E20',
+  fly_ball:         '#42A5F5', deep_fly: '#1565C0',
+  popup:            '#9E9E9E', home_run: '#FF6F00',
 };
 const PITCH_COLORS = {
   '4seam': '#EF5350', '2seam': '#FF7043', sinker: '#FFA726', cutter: '#AB47BC',
@@ -927,6 +929,27 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
     [pitchLog]
   );
 
+  // 분포 검증 — 인플레이 타구 집계 (파울·홈런 제외)
+  const inPlayStats = useMemo(() => {
+    const inPlay = pitchLog.filter(p => {
+      const t = p.batting?.type;
+      return t && t !== 'foul' && t !== 'foul_back' && t !== 'home_run';
+    });
+    const total = inPlay.length;
+    if (total === 0) return null;
+    const gb = inPlay.filter(p => ['weak_grounder','grounder','hard_grounder'].includes(p.batting.type)).length;
+    const ld = inPlay.filter(p => ['weak_line_drive','line_drive','barrel_line_drive'].includes(p.batting.type)).length;
+    const fb = inPlay.filter(p => ['fly_ball','deep_fly'].includes(p.batting.type)).length;
+    const iffb = inPlay.filter(p => p.batting.type === 'popup').length;
+    return {
+      total,
+      gb: ((gb / total) * 100).toFixed(1),
+      ld: ((ld / total) * 100).toFixed(1),
+      fb: ((fb / total) * 100).toFixed(1),
+      iffb: ((iffb / total) * 100).toFixed(1),
+    };
+  }, [pitchLog]);
+
   const recentPitches    = pitchLog.slice(0, 12);
   const currentBatter    = getCurrentBatter(gs);
   const attackingSide    = getAttackingSide(gs);
@@ -1394,6 +1417,31 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
 
             {/* 팀 기록 */}
             <TeamStats gs={gs} />
+
+            {/* 타구 분포 검증 */}
+            {inPlayStats && (
+              <div className={styles.resultCard}>
+                <div className={styles.sectionLabel}>타구 분포 (인플레이 {inPlayStats.total}개)</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
+                  {[
+                    { label: 'GB%', value: inPlayStats.gb, ok: [41, 49] },
+                    { label: 'LD%', value: inPlayStats.ld, ok: [17, 23] },
+                    { label: 'FB%', value: inPlayStats.fb, ok: [23, 31] },
+                    { label: 'IFFB%', value: inPlayStats.iffb, ok: [5, 13] },
+                  ].map(({ label, value, ok }) => {
+                    const v = parseFloat(value);
+                    const inRange = v >= ok[0] && v <= ok[1];
+                    return (
+                      <div key={label} style={{ textAlign: 'center', minWidth: 48 }}>
+                        <div style={{ color: '#4a5a6a', fontSize: 10 }}>{label}</div>
+                        <div style={{ fontWeight: 700, color: inRange ? '#66BB6A' : '#EF5350' }}>{value}%</div>
+                        <div style={{ color: '#4a5a6a', fontSize: 9 }}>{ok[0]}–{ok[1]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* 투구 로그 */}
             {pitchLog.length > 0 && (
