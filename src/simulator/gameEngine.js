@@ -56,8 +56,8 @@ export function createGameState() {
     totalInnings: 9,
     // 누적 기록
     stats: {
-      away: { ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, r: 0 },
-      home: { ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, r: 0 },
+      away: { ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, so_swing: 0, so_look: 0, r: 0 },
+      home: { ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, so_swing: 0, so_look: 0, r: 0 },
     },
     pitcherStats: {
       away: { pitches: 0, ip: 0, h: 0, bb: 0, so: 0, er: 0 },
@@ -74,14 +74,14 @@ export function createGameState() {
 
 // [단타확률, 2루타확률, 3루타확률] — 합계 = hitProb
 const HIT_TABLE = {
-  weak_grounder:     [0.120, 0.000, 0.000],
-  grounder:          [0.200, 0.040, 0.000],
-  hard_grounder:     [0.260, 0.070, 0.010],
-  weak_line_drive:   [0.520, 0.030, 0.000],
-  line_drive:        [0.480, 0.210, 0.030],
-  barrel_line_drive: [0.450, 0.380, 0.070],
-  fly_ball:          [0.110, 0.020, 0.000],
-  popup:             [0.020, 0.000, 0.000],
+  weak_grounder:     [0.095, 0.000, 0.000],
+  grounder:          [0.170, 0.030, 0.000],
+  hard_grounder:     [0.225, 0.058, 0.008],
+  weak_line_drive:   [0.450, 0.022, 0.000],
+  line_drive:        [0.420, 0.185, 0.025],
+  barrel_line_drive: [0.395, 0.330, 0.058],
+  fly_ball:          [0.092, 0.015, 0.000],
+  popup:             [0.015, 0.000, 0.000],
 };
 
 // 병살 확률 — 1루 주자 + 0·1아웃 조건일 때만 적용
@@ -264,6 +264,8 @@ export function processAtBat(gs, side, atBatResult) {
   } else if (type === 'strikeout' || type === 'strikeout_looking') {
     ng.stats[side].ab++;
     ng.stats[side].so++;
+    if (type === 'strikeout') ng.stats[side].so_swing++;
+    else                      ng.stats[side].so_look++;
     ng.pitcherStats[pitcherSide].so++;
     ng.outs++;
     logLine = `${prefix} ${type === 'strikeout' ? '헛스윙 삼진' : '낫아웃 삼진'}`;

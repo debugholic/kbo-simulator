@@ -108,6 +108,7 @@ export default function SimBenchmark({ onClose }) {
     // 누적 통계
     let totalAB = 0, totalH = 0, totalBB = 0, totalHBP = 0;
     let total1B = 0, total2B = 0, total3B = 0, totalHR = 0;
+    let totalSOSwing = 0, totalSOLook = 0;
     let totalRuns = 0, totalInnings = 0;
     let pitcherResets = 0;
     // 타구 분포 디버그
@@ -149,6 +150,8 @@ export default function SimBenchmark({ onClose }) {
         if (atBat.type === 'strikeout' || atBat.type === 'strikeout_looking') {
           outs++;
           totalAB++;
+          if (atBat.type === 'strikeout') totalSOSwing++;
+          else                            totalSOLook++;
           batSim.applyAtBatResult?.('strikeout', { isRisp: bases[1] || bases[2] });
         } else if (atBat.type === 'walk' || atBat.type === 'hbp') {
           totalBB += atBat.type === 'walk' ? 1 : 0;
@@ -233,6 +236,7 @@ export default function SimBenchmark({ onClose }) {
       innings: totalInnings,
       ab: totalAB, h: totalH, bb: totalBB,
       hr: totalHR, runs: totalRuns,
+      soSwing: totalSOSwing, soLook: totalSOLook,
       pitcherResets,
       avg:  avg.toFixed(3),
       obp:  obp.toFixed(3),
@@ -311,6 +315,8 @@ export default function SimBenchmark({ onClose }) {
                 ['타석당 투구수', result.pitchPerAtBat],
                 ['홈런', result.hr],
                 ['볼넷', result.bb],
+                ['헛스윙 삼진', result.soSwing],
+                ['낫아웃 삼진', result.soLook],
                 ['200이닝 총 타수', result.ab],
               ].map(([label, val]) => (
                 <div key={label} style={{ background: '#0a1018', borderRadius: 6, padding: '10px 14px' }}>

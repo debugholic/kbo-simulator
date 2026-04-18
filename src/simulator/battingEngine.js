@@ -419,7 +419,10 @@ export function calcWhiff(judgment, actualLoc, swingLevel, contact, pitchQuality
 
   const locationError = calcLocationError(judgment.judgedLocation, actualLoc);
   const swingAggressiveness = swingLevel > 75 ? 1.15 : 1.0;
-  const whiffBase = locationError * 0.6 * (1 - contactNorm * 0.6);
+
+  // baseWhiff: pitchQuality 높을수록 기본 헛스윙 확률 상승 (구위 자체의 효과)
+  const baseWhiff = 0.06 + (pitchQuality / 100) * 0.18;
+  const whiffBase = baseWhiff + locationError * 0.55 * (1 - contactNorm * 0.55);
 
   // ▶ Yerkes-Dodson: 긴장할수록 헛스윙 확률 추가 증가
   const whiffProb = clamp(

@@ -30,18 +30,18 @@ const COUNT_FB_BIAS = {
 };
 
 const COUNT_LOCATION_STRATEGY = {
-  '0-0': { zoneProb: 0.62, edgeProb: 0.27 },
-  '0-1': { zoneProb: 0.54, edgeProb: 0.27 },
-  '0-2': { zoneProb: 0.24, edgeProb: 0.24 },
-  '1-0': { zoneProb: 0.67, edgeProb: 0.24 },
-  '1-1': { zoneProb: 0.58, edgeProb: 0.27 },
-  '1-2': { zoneProb: 0.38, edgeProb: 0.32 },
-  '2-0': { zoneProb: 0.76, edgeProb: 0.19 },
-  '2-1': { zoneProb: 0.63, edgeProb: 0.25 },
-  '2-2': { zoneProb: 0.53, edgeProb: 0.32 },
-  '3-0': { zoneProb: 0.85, edgeProb: 0.11 },
-  '3-1': { zoneProb: 0.73, edgeProb: 0.21 },
-  '3-2': { zoneProb: 0.63, edgeProb: 0.27 },
+  '0-0': { zoneProb: 0.55, edgeProb: 0.34 },
+  '0-1': { zoneProb: 0.47, edgeProb: 0.35 },
+  '0-2': { zoneProb: 0.18, edgeProb: 0.38 },
+  '1-0': { zoneProb: 0.60, edgeProb: 0.31 },
+  '1-1': { zoneProb: 0.51, edgeProb: 0.34 },
+  '1-2': { zoneProb: 0.30, edgeProb: 0.42 },
+  '2-0': { zoneProb: 0.70, edgeProb: 0.24 },
+  '2-1': { zoneProb: 0.56, edgeProb: 0.32 },
+  '2-2': { zoneProb: 0.45, edgeProb: 0.40 },
+  '3-0': { zoneProb: 0.80, edgeProb: 0.16 },
+  '3-1': { zoneProb: 0.67, edgeProb: 0.27 },
+  '3-2': { zoneProb: 0.55, edgeProb: 0.34 },
 };
 
 // ── 존 가장자리 최근접점 ──────────────────────────────────────────
@@ -313,10 +313,10 @@ export function executePitch(plan, qualityData, pitcherState, stamina) {
   // ── Control → 도달 범위 (§3-8) ──
   // Yerkes-Dodson: 긴장할수록 controlRadius 증가 (errorMod 추가)
   const controlEffective = controlNorm * conditionMod * (isExhausted ? 0.7 : 1.0);
-  const controlRadius    = (2.5 - controlEffective * 2.0) * (1 + mistakeMod * 1.2);
-  // control 80 정상 → 0.5, 최악 긴장(mistakeMod=0.12) → 0.5*1.144 = 0.57
-  // control 50 정상 → 1.5, 최악 긴장 → 1.5*1.144 = 1.72
-  // control 20 정상 → 2.5, 최악 긴장 → 2.5*1.144 = 2.86
+  const controlRadius    = (1.2 - controlEffective * 0.9) * (1 + mistakeMod);
+  // control 80 정상 → 0.30, stddev ≈ 0.18
+  // control 50 정상 → 0.75, stddev ≈ 0.44
+  // control 20 정상 → 1.20, stddev ≈ 0.71
 
   const rawLocation = {
     x: gaussRandom(target.x, controlRadius * 0.59 + errorMod),

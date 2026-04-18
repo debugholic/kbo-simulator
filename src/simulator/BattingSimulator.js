@@ -176,10 +176,10 @@ export class BattingSimulator {
       // 자율 기다림: discipline 높을수록 더 확실한 스트라이크만 스윙
       swingThreshold = clamp(0.70 + disciplineNorm * 0.25, 0.70, 0.95);
     } else {
-      // discipline=20 → 0.32, discipline=50 → 0.57, discipline=80 → 0.82
+      // discipline=20 → 0.22, discipline=50 → 0.46, discipline=80 → 0.71
       swingThreshold = clamp(
-        0.32 + disciplineNorm * 0.50 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult),
-        0.15, 0.95
+        0.22 + disciplineNorm * 0.44 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult),
+        0.10, 0.95
       );
     }
 

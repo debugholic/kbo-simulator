@@ -215,7 +215,7 @@ function TeamStats({ gs }) {
               <span>홈런 <b style={{ color: '#FF6F00' }}>{s.hr}</b></span>
               <span>타점 <b style={{ color: '#FFA726' }}>{s.rbi || 0}</b></span>
               <span>볼넷 <b style={{ color: '#ccd6f6' }}>{s.bb}</b></span>
-              <span>삼진 <b style={{ color: '#EF5350' }}>{s.so}</b></span>
+              <span>삼진 <b style={{ color: '#EF5350' }}>{s.so}</b> <span style={{ color: '#666', fontSize: 9 }}>(헛 {s.so_swing ?? 0} / 낫 {s.so_look ?? 0})</span></span>
             </div>
           </div>
         );
