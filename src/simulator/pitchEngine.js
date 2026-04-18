@@ -159,10 +159,28 @@ export function selectTarget(countKey, pitchType, feedback) {
       x = gaussRandom(0, 0.5); y = rand(-ZONE_Y * 1.15, -ZONE_Y * 0.7); locationZone = 'low';
     }
   } else {
-    const angle = Math.random() * Math.PI * 2;
-    const dist  = rand(1.3, 2.0);
-    x = Math.cos(angle) * dist;
-    y = Math.sin(angle) * dist * ZONE_Y;
+    // 유인구 — 구종 계열별 방향성 적용
+    const wasteRoll = Math.random();
+    const isFB = FASTBALL_TYPES.has(pitchType?.type || pitchType);
+    if (isFB) {
+      // 직구 계열: 바깥쪽(45%) / 높은 쪽 헛스윙 유도(35%) / 낮은 바깥(20%)
+      if (wasteRoll < 0.45) {
+        x = rand(ZONE_X * 1.2, ZONE_X * 2.0); y = gaussRandom(0, 0.5);
+      } else if (wasteRoll < 0.80) {
+        x = gaussRandom(0, 0.4); y = rand(ZONE_Y * 1.2, ZONE_Y * 2.0);
+      } else {
+        x = rand(ZONE_X * 0.8, ZONE_X * 1.8); y = rand(-ZONE_Y * 1.8, -ZONE_Y * 1.0);
+      }
+    } else {
+      // 변화구/체인지업: 낮은 바깥쪽(50%) / 바깥쪽(30%) / 낮은 쪽(20%)
+      if (wasteRoll < 0.50) {
+        x = rand(ZONE_X * 0.3, ZONE_X * 1.8); y = rand(-ZONE_Y * 2.0, -ZONE_Y * 1.2);
+      } else if (wasteRoll < 0.80) {
+        x = rand(ZONE_X * 1.0, ZONE_X * 2.0); y = gaussRandom(-0.3, 0.5);
+      } else {
+        x = gaussRandom(0, 0.5); y = rand(-ZONE_Y * 2.0, -ZONE_Y * 1.3);
+      }
+    }
     locationZone = 'waste';
   }
 

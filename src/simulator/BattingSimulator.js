@@ -177,8 +177,10 @@ export class BattingSimulator {
       swingThreshold = clamp(0.70 + disciplineNorm * 0.25, 0.70, 0.95);
     } else {
       // discipline=20 → 0.22, discipline=50 → 0.46, discipline=80 → 0.71
+      // 2스트라이크: 긴박 → 존 확장 (웬만한 볼도 쫓음)
+      const twoStrikeMod = count.strikes === 2 ? -0.08 : 0;
       swingThreshold = clamp(
-        0.22 + disciplineNorm * 0.44 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult),
+        0.22 + disciplineNorm * 0.44 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult) + twoStrikeMod,
         0.10, 0.95
       );
     }
