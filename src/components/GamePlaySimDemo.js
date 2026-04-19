@@ -432,12 +432,35 @@ function NarrativeBar({ pitchSrc, batSrc, pitchReveal, batReveal }) {
   function line2() {
     if (!batReveal.plan || !batSrc?.plan) return null;
     const bp = batSrc.plan;
-    const pred = bp.predictedPitchType ? PT[bp.predictedPitchType] || bp.predictedPitchType : null;
     const bias = bp.biasStrength ?? 0;
-    const predText = pred
-      ? (bias > 0.3 ? `${pred}를 강하게 예상하고 있다.` : bias < -0.2 ? `${pred}를 예상하지만 확신이 없다.` : `${pred}를 예상하고 있다.`)
-      : '어떤 공이 올지 감을 잡지 못하고 있다.';
-    const tacticText = bp.tactic === 'take' ? ' 일단 공을 보기로 했다.' : bp.tactic === 'contact' ? ' 맞추는 데 집중한다.' : ' 풀스윙 준비.';
+
+    // 예측 구종 텍스트
+    let predText;
+    if (bp.predictedPitchType) {
+      const pred = PT[bp.predictedPitchType] || bp.predictedPitchType;
+      if      (bias > 0.4)  predText = `${pred}를 강하게 예상하고 있다.`;
+      else if (bias > 0.1)  predText = `${pred}를 예상하고 있다.`;
+      else if (bias < -0.3) predText = `${pred}를 예상하지만 자신이 없다.`;
+      else                  predText = `${pred}가 올 것 같다.`;
+    } else if (bp.guardPitchType) {
+      // 구종 예측은 못 했지만 AtBatContext로 경계 구종은 인식
+      const guard = PT[bp.guardPitchType] || bp.guardPitchType;
+      predText = `${guard}를 조심하고 있다.`;
+    } else {
+      predText = '어떤 공이 올지 읽지 못하고 있다.';
+    }
+
+    // 작전 텍스트
+    let tacticText;
+    switch (bp.tactic) {
+      case 'take':           tacticText = ' 일단 공을 보기로 했다.'; break;
+      case 'contact':        tacticText = ' 맞추는 데 집중한다.'; break;
+      case 'sacrifice_fly':  tacticText = ' 희생 플라이를 노린다.'; break;
+      case 'opposite_field': tacticText = ' 밀어치기를 노린다.'; break;
+      case 'bunt':           tacticText = ' 번트 준비.'; break;
+      default:               tacticText = ' 풀스윙 준비.';
+    }
+
     return `타자: ${predText}${tacticText}`;
   }
 
