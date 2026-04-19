@@ -194,9 +194,17 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
   }
 
   // ── 작전 ──
-  // discipline 높을수록 볼카운트 유리할 때 기다리는 경향 강함
+  // 볼카운트별 take 성향 (3볼: 거의 항상 기다림)
   let tactic = 'full_swing';
-  if (balls === 3 && strikes < 2 && Math.random() < 0.20 + disciplineNorm * 0.30) tactic = 'take';
+  if (strikes < 2) {
+    let takeProb = 0;
+    if      (balls === 3 && strikes === 0) takeProb = 0.82 + disciplineNorm * 0.15; // 3-0: ~89~97%
+    else if (balls === 3 && strikes === 1) takeProb = 0.52 + disciplineNorm * 0.28; // 3-1: ~66~80%
+    else if (balls === 2 && strikes === 0) takeProb = 0.18 + disciplineNorm * 0.27; // 2-0: ~32~45%
+    else if (balls === 2 && strikes === 1) takeProb = 0.08 + disciplineNorm * 0.15; // 2-1: ~16~24%
+    else if (balls === 1 && strikes === 0) takeProb = 0.05 + disciplineNorm * 0.10; // 1-0: ~10~15%
+    if (takeProb > 0 && Math.random() < takeProb) tactic = 'take';
+  }
   if (strikes === 2) tactic = 'contact';
 
   // 주자 상황 기반 tactic 보정 (batterState에 situation 포함 시)
@@ -586,13 +594,15 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
 
   // ── direction ──
   // cx*30: 당겨치기/밀어치기 기본 방향, gaussRandom으로 파울 비율 조절
-  const dirSpread = (1 - qualityNorm) * 72 * spreadMod + 20;
+  // dirSpread 상향: 파울 비율 29.7% → 목표 33~35%
+  const dirSpread = (1 - qualityNorm) * 82 * spreadMod + 23;
   const direction  = 90 - cx * 30 + gaussRandom(0, dirSpread);
 
   // ── 타구 유형 분류 (서브타입 포함) ──
+  // fair zone 44~136 (기존 42~138 대비 4° 축소 → 파울 소폭 증가)
   let type;
   if      (quality < 10 || direction < -8 || direction > 188)  type = 'foul_back';
-  else if (direction < 42 || direction > 138)                   type = 'foul';
+  else if (direction < 44 || direction > 136)                   type = 'foul';
   else if (launchAngle < 10) {
     if      (exitVelo < 110) type = 'weak_grounder';
     else if (exitVelo > 140) type = 'hard_grounder';
