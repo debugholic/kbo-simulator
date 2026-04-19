@@ -174,7 +174,8 @@ export class BattingSimulator {
     let swingThreshold;
     if (plan.targetBallResult === 'take') {
       // 자율 기다림: discipline 높을수록 더 확실한 스트라이크만 스윙
-      swingThreshold = clamp(0.70 + disciplineNorm * 0.25, 0.70, 0.95);
+      // 외곽 공을 더 잘 참도록 임계값 상향 (0.70 → 0.80)
+      swingThreshold = clamp(0.80 + disciplineNorm * 0.15, 0.80, 0.95);
     } else {
       // discipline=20 → 0.22, discipline=50 → 0.46, discipline=80 → 0.71
       // 2스트라이크: 긴박 → 존 확장 (웬만한 볼도 쫓음)
@@ -240,7 +241,7 @@ export class BattingSimulator {
       calcContactQuality(swingLevel, swingType, locationError, pitchQuality, contact, batterState);
 
     // ── ⑦ 타구 벡터 생성 ─────────────────────────────────────
-    const battingVec = calcBattingVector(quality, swingLevel, pitch, this.power, batterState, this.stadiumKey);
+    const battingVec = calcBattingVector(quality, swingLevel, pitch, this.power, batterState, this.stadiumKey, judgment);
 
     return {
       action: 'swing', result: 'contact',

@@ -562,7 +562,7 @@ export function calcContactQuality(swingLevel, swingType, locationError, pitchQu
  * @param {string} [stadiumKey]  — 구장 키 (default: 'jamsil')
  * @returns {{ type, exitVelo, launchAngle, direction, estDist, wallDist, contactPoint }}
  */
-export function calcBattingVector(quality, swingLevel, pitch, power, batterState, stadiumKey = 'jamsil') {
+export function calcBattingVector(quality, swingLevel, pitch, power, batterState, stadiumKey = 'jamsil', judgment = null) {
   const { tension } = batterState;
   const qualityNorm = quality / 100;
   const powerNorm   = norm(power);
@@ -595,7 +595,18 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   // ── direction ──
   // cx*30: 당겨치기/밀어치기 기본 방향, gaussRandom으로 파울 비율 조절
   // dirSpread 상향: 파울 비율 29.7% → 목표 33~35%
-  const dirSpread = (1 - qualityNorm) * 82 * spreadMod + 23;
+  const baseDirSpread = (1 - qualityNorm) * 82 * spreadMod + 23;
+
+  // ── protective foul boost ──
+  // 예상 못한 공이 왔을 때(category_confused / bias_interfered) 타자는
+  // 풀스윙 대신 일단 파울로 걷어내려는 본능적 반응을 보임.
+  // → dirSpread를 추가 증폭해 타구가 자연스럽게 파울존으로 빠지도록.
+  const judgmentType = judgment?.judgmentType;
+  const protectiveFoulBoost =
+    judgmentType === 'category_confused' ? 38 :
+    judgmentType === 'bias_interfered'   ? 20 : 0;
+
+  const dirSpread = baseDirSpread + protectiveFoulBoost;
   const direction  = 90 - cx * 30 + gaussRandom(0, dirSpread);
 
   // ── 타구 유형 분류 (서브타입 포함) ──
