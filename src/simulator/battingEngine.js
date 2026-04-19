@@ -599,10 +599,9 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   const direction  = 90 - cx * 30 + gaussRandom(0, dirSpread);
 
   // ── 타구 유형 분류 (서브타입 포함) ──
-  // fair zone 44~136 (기존 42~138 대비 4° 축소 → 파울 소폭 증가)
   let type;
   if      (quality < 10 || direction < -8 || direction > 188)  type = 'foul_back';
-  else if (direction < 44 || direction > 136)                   type = 'foul';
+  else if (direction < 42 || direction > 138)                   type = 'foul';
   else if (launchAngle < 10) {
     if      (exitVelo < 110) type = 'weak_grounder';
     else if (exitVelo > 140) type = 'hard_grounder';

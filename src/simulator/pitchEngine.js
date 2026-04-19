@@ -30,19 +30,22 @@ const COUNT_FB_BIAS = {
   '3-0': 0.35, '3-1': 0.20,  '3-2': 0.10,
 };
 
+// waste = 1 - zoneProb - edgeProb
+// 목표 ball rate ~38-40% (현재 32.3%)
+// → waste 비율을 전 카운트 8~10%p 상향, 투수 유리 카운트(0-2, 1-2)는 더 공격적으로 올림
 const COUNT_LOCATION_STRATEGY = {
-  '0-0': { zoneProb: 0.55, edgeProb: 0.34 },
-  '0-1': { zoneProb: 0.47, edgeProb: 0.35 },
-  '0-2': { zoneProb: 0.18, edgeProb: 0.38 },
-  '1-0': { zoneProb: 0.60, edgeProb: 0.31 },
-  '1-1': { zoneProb: 0.51, edgeProb: 0.34 },
-  '1-2': { zoneProb: 0.30, edgeProb: 0.42 },
-  '2-0': { zoneProb: 0.70, edgeProb: 0.24 },
-  '2-1': { zoneProb: 0.56, edgeProb: 0.32 },
-  '2-2': { zoneProb: 0.45, edgeProb: 0.40 },
-  '3-0': { zoneProb: 0.80, edgeProb: 0.16 },
-  '3-1': { zoneProb: 0.67, edgeProb: 0.27 },
-  '3-2': { zoneProb: 0.55, edgeProb: 0.34 },
+  '0-0': { zoneProb: 0.47, edgeProb: 0.32 }, // waste 0.21 (↑0.10)
+  '0-1': { zoneProb: 0.40, edgeProb: 0.32 }, // waste 0.28 (↑0.10)
+  '0-2': { zoneProb: 0.13, edgeProb: 0.34 }, // waste 0.53 (↑0.09) — 유인구 적극
+  '1-0': { zoneProb: 0.52, edgeProb: 0.29 }, // waste 0.19 (↑0.10)
+  '1-1': { zoneProb: 0.43, edgeProb: 0.32 }, // waste 0.25 (↑0.10)
+  '1-2': { zoneProb: 0.23, edgeProb: 0.38 }, // waste 0.39 (↑0.11)
+  '2-0': { zoneProb: 0.63, edgeProb: 0.22 }, // waste 0.15 (↑0.09) — 스트라이크 필요
+  '2-1': { zoneProb: 0.48, edgeProb: 0.30 }, // waste 0.22 (↑0.10)
+  '2-2': { zoneProb: 0.38, edgeProb: 0.37 }, // waste 0.25 (↑0.10)
+  '3-0': { zoneProb: 0.76, edgeProb: 0.15 }, // waste 0.09 (↑0.05) — 볼넷 위기, 스트라이크 급함
+  '3-1': { zoneProb: 0.60, edgeProb: 0.25 }, // waste 0.15 (↑0.09)
+  '3-2': { zoneProb: 0.48, edgeProb: 0.31 }, // waste 0.21 (↑0.10)
 };
 
 // ── 존 가장자리 최근접점 ──────────────────────────────────────────
