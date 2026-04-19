@@ -702,7 +702,7 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   if (isAirball && launchAngle > 10 && direction > 30 && direction < 150) {
     const v = exitVelo / 3.6;
     const rad = launchAngle * Math.PI / 180;
-    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.63);
+    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.65);
 
     wallDist = getWallDistance(stadiumKey, direction);
 
