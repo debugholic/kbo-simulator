@@ -155,14 +155,28 @@ function predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitc
 }
 
 /**
- * @param {Object}   count           — { balls, strikes }
- * @param {Array}    pitchHistory    — 이번 타석 이전 투구 기록
- * @param {Object}   batterState     — { eye, power, tension }
- * @param {string[]} knownPitchTypes — 상대 투수의 알려진 구종 (레퍼토리)
- * @param {Object}   [atBatContext]  — { prevAtBatsVsBatter, lineupSignal } (§8)
+ * 타석 진입 시 형성한 플랜의 잔류 가중치 (투구 수 기반).
+ *
+ * 타자는 초기 노림수(구종 예측·목표 타구)를 처음 2~3구 동안 유지하려는
+ * 경향이 있다. 이후 카운트와 실제 투구 흐름에 따라 플랜을 갱신한다.
+ *
+ * pitch 0 → 1.00 (초기 플랜 그대로)
+ * pitch 1 → 0.70 (첫 공을 봤어도 아직 노림 유지 성향 강함)
+ * pitch 2 → 0.40 (절반 정도 남아 있음)
+ * pitch 3+→ 0.00 (플랜 완전 갱신)
+ */
+const PLAN_STICKY_DECAY = [1.0, 0.70, 0.40, 0.0];
+
+/**
+ * @param {Object}   count              — { balls, strikes }
+ * @param {Array}    pitchHistory       — 이번 타석 이전 투구 기록
+ * @param {Object}   batterState        — { eye, power, tension }
+ * @param {string[]} knownPitchTypes    — 상대 투수의 알려진 구종 (레퍼토리)
+ * @param {Object}   [atBatContext]     — { prevAtBatsVsBatter, lineupSignal } (§8)
+ * @param {Object}   [initialAtBatPlan] — 첫 투구에서 생성된 플랜 (stickiness용)
  * @returns {Object} plan
  */
-export function generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes = [], atBatContext = null) {
+export function generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes = [], atBatContext = null, initialAtBatPlan = null) {
   const { balls, strikes } = count;
   const { eye, power, discipline, tension } = batterState;
   const eyeNorm        = norm(eye);
@@ -173,17 +187,39 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
   // ── 피드백 기반 바이어스 강도 ──
   const biasStrength = computeBiasStrength(pitchHistory);
 
-  // ── §8-2 타석 초기 예측 편향 (atBatContext) ──
-  // 이번 타석 첫 투구 전 단계에서만 유효 (pitchHistory가 비어 있을 때)
-  const { fbBias: initialFbBias, guardPitchType } =
-    pitchHistory.length === 0
-      ? computeInitialBias(knownPitchTypes, atBatContext)
-      : { fbBias: 0, guardPitchType: null };
+  // ── 플랜 잔류 가중치 (pitchHistory 길이 = 이번 타석에서 본 투구 수) ──
+  const pitchCount  = pitchHistory.length;
+  const stickyW     = PLAN_STICKY_DECAY[Math.min(pitchCount, 3)];
+  const hasInitial  = initialAtBatPlan != null;
 
-  // ── 예측 구종 (카운트 + 히스토리 기반, 실제 구종 미사용) ──
-  const predictedPitchType = predictPitchType(
-    count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes, initialFbBias
-  );
+  // ── §8-2 타석 초기 예측 편향 (atBatContext) ──
+  // 첫 투구: computeInitialBias 실행 후 fbBias를 plan에 저장
+  // 이후 투구: 저장된 fbBias를 stickyW로 감쇠해 계속 활용
+  let initialFbBias, guardPitchType;
+  if (pitchCount === 0) {
+    ({ fbBias: initialFbBias, guardPitchType } = computeInitialBias(knownPitchTypes, atBatContext));
+  } else if (hasInitial && stickyW > 0) {
+    initialFbBias  = (initialAtBatPlan._fbBias ?? 0) * stickyW;
+    guardPitchType = initialAtBatPlan.guardPitchType ?? null;
+  } else {
+    initialFbBias  = 0;
+    guardPitchType = null;
+  }
+
+  // ── 예측 구종 ──
+  // 초기 예측이 있고 잔류 가중치가 남아 있으면, 그 확률로 초기 예측을 그대로 유지.
+  // 이를 통해 타자가 타석 진입 시 노린 구종을 2~3구 동안 계속 기다리는 경향 구현.
+  let predictedPitchType;
+  if (hasInitial && pitchCount > 0 && stickyW > 0
+      && initialAtBatPlan.predictedPitchType
+      && Math.random() < stickyW * 0.75) {
+    // 초기 노림 구종 유지 (잔류 가중치만큼 확률)
+    predictedPitchType = initialAtBatPlan.predictedPitchType;
+  } else {
+    predictedPitchType = predictPitchType(
+      count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes, initialFbBias
+    );
+  }
 
   // ── 예측 존 ──
   let predictedZone = null;
@@ -220,6 +256,19 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
     }
   }
 
+  // ── 작전 잔류 ──
+  // 2스트라이크는 count 강제 (contact)이므로 stickiness 적용 안 함.
+  // 그 외에는 초기 작전을 stickyW * 0.55 확률로 유지.
+  if (hasInitial && pitchCount > 0 && stickyW > 0 && strikes < 2) {
+    const initTactic = initialAtBatPlan.tactic;
+    // take 작전은 카운트 기반이므로 stickiness 제외
+    if (initTactic && initTactic !== 'take' && tactic !== 'take') {
+      if (Math.random() < stickyW * 0.55) {
+        tactic = initTactic;
+      }
+    }
+  }
+
   // ── 목표 타구 ──
   let targetBallResult = null;
   if (tactic === 'contact') {
@@ -235,6 +284,15 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
     if      (powerNorm > 0.6 && r < 0.2)  targetBallResult = 'home_run';
     else if (r < 0.35)                     targetBallResult = 'line_drive_center';
     else if (r < 0.50)                     targetBallResult = 'deep_fly_any';
+  }
+
+  // ── 목표 타구 잔류 ──
+  // 작전이 같을 때에 한해, 초기 목표 타구도 유지.
+  if (hasInitial && pitchCount > 0 && stickyW > 0
+      && tactic === initialAtBatPlan.tactic
+      && initialAtBatPlan.targetBallResult
+      && Math.random() < stickyW * 0.65) {
+    targetBallResult = initialAtBatPlan.targetBallResult;
   }
 
   // ── 목표 스윙 레벨 ──
@@ -261,6 +319,8 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
     tactic,
     targetBallResult,
     targetSwingLevel: Math.round(targetSwingLevel),
+    // ── stickiness용 내부 필드 ──
+    _fbBias: pitchCount === 0 ? initialFbBias : (initialAtBatPlan?._fbBias ?? 0),
   };
 }
 

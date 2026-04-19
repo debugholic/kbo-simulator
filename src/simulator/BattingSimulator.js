@@ -36,7 +36,8 @@ export class BattingSimulator {
     this.stadiumKey  = stadiumKey;
 
     this._initGameState(profile.fatigue ?? 0);
-    this.atBatHistory = [];
+    this.atBatHistory    = [];
+    this._initialAtBatPlan = null;  // 타석 초기 플랜 (stickiness용)
   }
 
   _initGameState(fatigue = 0) {
@@ -151,7 +152,12 @@ export class BattingSimulator {
         wasBiasConfirmed:   r.judgment?.wasBiasConfirmed ?? false,
       }));
 
-    const plan = generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes, atBatContext);
+    const plan = generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes, atBatContext, this._initialAtBatPlan);
+
+    // 첫 투구에서 생성된 플랜을 저장해 이후 투구에서 stickiness 재활용
+    if (pitchHistory.length === 0) {
+      this._initialAtBatPlan = plan;
+    }
 
     // ── ③ 투구 판단 ──────────────────────────────────────────
     const judgment = judgePitch(pitch, plan, batterState, knownPitchTypes);
@@ -345,8 +351,9 @@ export class BattingSimulator {
     // tension 회복
     const recovery = (45 - this.tension) * 0.4 + gaussRandom(0, 3);
     this.tension = clamp(this.tension + recovery, 20, 80);
-    // 타석 히스토리 초기화 (새 이닝)
-    this.atBatHistory = [];
+    // 타석 히스토리 및 초기 플랜 초기화 (새 이닝)
+    this.atBatHistory      = [];
+    this._initialAtBatPlan = null;
   }
 }
 
