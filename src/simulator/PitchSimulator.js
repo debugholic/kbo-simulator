@@ -218,11 +218,11 @@ export class PitchSimulator {
 
   // ── ② 투구 계획 생성 ─────────────────────────────────────────
 
-  planPitch(count, situation = {}, feedback = null) {
+  planPitch(count, situation = {}, feedback = null, atBatContext = null) {
     const countKey = `${count.balls}-${count.strikes}`;
 
     const { pitchType, reasoning: typeReasoning } =
-      selectPitchType(this.pitchTypes, this.pitchTypeCondition, countKey, feedback);
+      selectPitchType(this.pitchTypes, this.pitchTypeCondition, countKey, feedback, atBatContext);
 
     const { target, reasoning: locationReasoning, locationZone } =
       selectTarget(countKey, pitchType, feedback);
@@ -256,7 +256,7 @@ export class PitchSimulator {
 
   // ── 메인 API ─────────────────────────────────────────────────
 
-  simulate(count, situation = {}, feedback = null) {
+  simulate(count, situation = {}, feedback = null, atBatContext = null) {
     this.pitchCount++;
 
     // ── 매 투구마다 체력 소모 ──
@@ -271,7 +271,7 @@ export class PitchSimulator {
     // 상황 기반 tension 갱신 (매 투구마다)
     this._applySituationTension(situation, count);
 
-    const plan = this.planPitch(count, situation, feedback);
+    const plan = this.planPitch(count, situation, feedback, atBatContext);
 
     // 비정상 투구 체크
     const abnormal = this.checkAbnormal(count, situation);

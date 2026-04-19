@@ -63,6 +63,17 @@ export function createGameState() {
       away: { pitches: 0, ip: 0, h: 0, bb: 0, so: 0, er: 0 },
       home: { pitches: 0, ip: 0, h: 0, bb: 0, so: 0, er: 0 },
     },
+    // ── AtBatContext (§8) ─────────────────────────────────────────
+    // 타자별 이전 타석 기록: { [batterId]: AtBatRecord[] }
+    atBatHistoryByBatter: {},
+    // 직전 타자가 남긴 투구 패턴 신호
+    lineupSignal: {
+      prevResult:         null,  // 'hit'|'strikeout'|'walk'|'out'|null
+      prevEndingPitch:    null,  // 결정구 구종
+      pitcherControlSign: null,  // 'good'|'off'|null
+    },
+    _consecutiveWalks:   0,     // 연속 볼넷 카운터 (이닝 내)
+    _inningStrikeouts:   0,     // 이닝 내 삼진 수
   };
 }
 
@@ -238,13 +249,13 @@ function advanceOnGroundOut(bases, outs) {
  * 타석 완료(볼넷/삼진/인플레이) 후 게임 상태 갱신
  * @param {Object} gs           — gameState (mutate 하지 않고 복사 반환)
  * @param {'away'|'home'} side  — 공격 팀
- * @param {Object} atBatResult  — { type: 'walk'|'strikeout'|'strikeout_looking'|'in_play', playJudge?, batterName }
- * @returns {{ newGs, logLine }}
+ * @param {Object} atBatResult  — { type, playJudge?, batterName, batterId?, endingPitchType?, endingZone? }
+ * @returns {Object} 새 gameState
  */
 export function processAtBat(gs, side, atBatResult) {
   const ng = deepCloneGs(gs);
   const pitcherSide = side === 'away' ? 'home' : 'away';
-  const { type, playJudge, batterName } = atBatResult;
+  const { type, playJudge, batterName, batterId, endingPitchType = null, endingZone = null } = atBatResult;
   const prefix = `${ng.inning}회 ${ng.topBottom === 'top' ? '초' : '말'} [${batterName}]`;
   let logLine = '';
 
@@ -298,6 +309,59 @@ export function processAtBat(gs, side, atBatResult) {
     }
   }
 
+  // ── AtBatContext 갱신 (§8) ──────────────────────────────────────
+  // 1. 타자별 이전 타석 기록
+  if (batterId) {
+    const prev = ng.atBatHistoryByBatter[batterId] ?? [];
+    let abResultLabel;
+    if      (type === 'walk')              abResultLabel = 'walk';
+    else if (type === 'strikeout' || type === 'strikeout_looking') abResultLabel = 'strikeout';
+    else if (type === 'in_play' && playJudge) {
+      if      (playJudge.result === 'home_run') abResultLabel = 'home_run';
+      else if (playJudge.result === 'hit')      abResultLabel = 'hit';
+      else                                      abResultLabel = 'out';
+    }
+    if (abResultLabel) {
+      ng.atBatHistoryByBatter = {
+        ...ng.atBatHistoryByBatter,
+        [batterId]: [...prev, { result: abResultLabel, endingPitchType, endingZone }].slice(-3),
+      };
+    }
+  }
+
+  // 2. 연속 볼넷 / 이닝 삼진 추적
+  if (type === 'walk') {
+    ng._consecutiveWalks = (ng._consecutiveWalks ?? 0) + 1;
+    ng._inningStrikeouts = ng._inningStrikeouts ?? 0;
+  } else if (type === 'strikeout' || type === 'strikeout_looking') {
+    ng._consecutiveWalks = 0;
+    ng._inningStrikeouts = (ng._inningStrikeouts ?? 0) + 1;
+  } else {
+    ng._consecutiveWalks = 0;
+    ng._inningStrikeouts = ng._inningStrikeouts ?? 0;
+  }
+
+  // 3. lineupSignal 갱신
+  {
+    let pitcherControlSign = ng.lineupSignal.pitcherControlSign;
+    if (ng._consecutiveWalks >= 2)      pitcherControlSign = 'off';
+    else if (ng._inningStrikeouts >= 2) pitcherControlSign = 'good';
+    else                                pitcherControlSign = null;
+
+    let prevResult = null;
+    if      (type === 'walk')              prevResult = 'walk';
+    else if (type === 'strikeout' || type === 'strikeout_looking') prevResult = 'strikeout';
+    else if (type === 'in_play' && playJudge) {
+      prevResult = (playJudge.result === 'hit' || playJudge.result === 'home_run') ? 'hit' : 'out';
+    }
+
+    ng.lineupSignal = {
+      prevResult,
+      prevEndingPitch: endingPitchType,
+      pitcherControlSign,
+    };
+  }
+
   // 이닝 종료 체크
   if (ng.outs >= 3) {
     ng.outs = 0;
@@ -306,6 +370,10 @@ export function processAtBat(gs, side, atBatResult) {
 
     // IP 기록
     ng.pitcherStats[pitcherSide].ip = (ng.pitcherStats[pitcherSide].ip || 0) + 1;
+
+    // 이닝 종료 → 이닝 내 카운터 초기화
+    ng._consecutiveWalks = 0;
+    ng._inningStrikeouts = 0;
 
     if (ng.topBottom === 'top') {
       ng.topBottom = 'bottom';
@@ -380,5 +448,21 @@ function deepCloneGs(gs) {
       away: { ...gs.pitcherStats.away },
       home: { ...gs.pitcherStats.home },
     },
+    lineupSignal:         { ...(gs.lineupSignal ?? {}) },
+    atBatHistoryByBatter: { ...(gs.atBatHistoryByBatter ?? {}) },
+  };
+}
+
+// ── AtBatContext 헬퍼 ────────────────────────────────────────────────
+/**
+ * 현재 타자에 해당하는 AtBatContext를 게임 상태에서 추출한다.
+ * @param {Object} gs       — gameState
+ * @param {string} batterId — batter.id
+ * @returns {{ prevAtBatsVsBatter: AtBatRecord[], lineupSignal: LineupSignal }}
+ */
+export function getAtBatContext(gs, batterId) {
+  return {
+    prevAtBatsVsBatter: gs.atBatHistoryByBatter?.[batterId] ?? [],
+    lineupSignal:       gs.lineupSignal ?? { prevResult: null, prevEndingPitch: null, pitcherControlSign: null },
   };
 }

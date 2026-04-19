@@ -116,7 +116,7 @@ export class BattingSimulator {
    * @param {string[]} knownPitchTypes — 상대 투수의 알려진 구종 목록 (레퍼토리)
    * @param {Object}   situation       — { outs, bases, isClose, isLate }
    */
-  simulate(pitch, count = { balls: 0, strikes: 0 }, pitcherHand = 'R', knownPitchTypes = [], situation = {}) {
+  simulate(pitch, count = { balls: 0, strikes: 0 }, pitcherHand = 'R', knownPitchTypes = [], situation = {}, atBatContext = null) {
     if (!pitch.isNormal || !pitch.location) {
       return { action: 'none', description: '비정상 투구' };
     }
@@ -151,7 +151,7 @@ export class BattingSimulator {
         wasBiasConfirmed:   r.judgment?.wasBiasConfirmed ?? false,
       }));
 
-    const plan = generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes);
+    const plan = generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes, atBatContext);
 
     // ── ③ 투구 판단 ──────────────────────────────────────────
     const judgment = judgePitch(pitch, plan, batterState, knownPitchTypes);

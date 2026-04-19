@@ -45,6 +45,53 @@ const COUNT_FB_PROB = {
 };
 
 /**
+ * AtBatContext 기반 타자 초기 예측 편향 계산 (§8-2).
+ *
+ * FB 비율, 직전 타석 결과, 앞 타자 신호를 종합해 이번 타석의
+ * 첫 투구 전 초기 fbProb 보정값과 경계 구종을 반환한다.
+ *
+ * @param {string[]} knownPitchTypes — 투수 레퍼토리
+ * @param {Object}   atBatContext    — { prevAtBatsVsBatter, lineupSignal }
+ * @returns {{ fbBias: number, guardPitchType: string|null }}
+ *   fbBias: fbProb에 더할 보정값 (-0.3 ~ +0.3)
+ *   guardPitchType: 특히 경계할 구종 (null 가능)
+ */
+function computeInitialBias(knownPitchTypes, atBatContext) {
+  if (!atBatContext || !knownPitchTypes?.length) return { fbBias: 0, guardPitchType: null };
+
+  const { prevAtBatsVsBatter = [], lineupSignal = {} } = atBatContext;
+  const fbTypes   = knownPitchTypes.filter(t => FASTBALL_TYPES.has(t));
+  const fbRatio   = fbTypes.length / knownPitchTypes.length;
+
+  // FB 비율 편향: FB 60% → +0.16, FB 40% → -0.16
+  let fbBias = (fbRatio - 0.5) * 1.6 * 0.2;   // 스케일 0.2 → max ±0.16
+
+  // 직전 타석 수정
+  const prevAB = prevAtBatsVsBatter[prevAtBatsVsBatter.length - 1];
+  let guardPitchType = null;
+  if (prevAB?.endingPitchType) {
+    if (prevAB.result === 'strikeout') {
+      // 삼진 당한 구종 경계 → 그 구종 계열 반대로 예측 편향 강화
+      guardPitchType = prevAB.endingPitchType;
+      fbBias += FASTBALL_TYPES.has(prevAB.endingPitchType) ? -0.20 : +0.20;
+    } else if (prevAB.result === 'hit' || prevAB.result === 'home_run') {
+      // 안타/홈런 구종 자신감 → 그 구종 다시 기대
+      guardPitchType = prevAB.endingPitchType;
+      fbBias += FASTBALL_TYPES.has(prevAB.endingPitchType) ? +0.15 : -0.15;
+    }
+  }
+
+  // 앞 타자 신호: 같은 구종에 당했으면 추가 경계
+  if (lineupSignal.prevEndingPitch && lineupSignal.prevResult === 'strikeout') {
+    const isLinupFB = FASTBALL_TYPES.has(lineupSignal.prevEndingPitch);
+    fbBias += isLinupFB ? -0.10 : +0.10;
+    if (!guardPitchType) guardPitchType = lineupSignal.prevEndingPitch;
+  }
+
+  return { fbBias: clamp(fbBias, -0.30, 0.30), guardPitchType };
+}
+
+/**
  * 이전 투구 피드백으로 선입견 강도 계산 (최근 4구 기준).
  * - 예측이 맞았거나(predictedCorrect) 착각으로 예측 구종처럼 느꼈을 때(wasBiasConfirmed) → 선입견 강화
  * - 예측이 완전히 빗나갔을 때 → 선입견 약화
@@ -66,7 +113,7 @@ function computeBiasStrength(pitchHistory) {
  *
  * @param {string[]} knownPitchTypes — 투수 레퍼토리 (e.g. ['4seam','slider','changeup'])
  */
-function predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes) {
+function predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes, initialFbBias = 0) {
   const willPredict = Math.random() < (eyeNorm * 0.45 + 0.10) * tensionFactor;
   if (!willPredict) return null;
 
@@ -83,6 +130,9 @@ function predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitc
 
   const countKey = `${count.balls}-${count.strikes}`;
   let fbProb = COUNT_FB_PROB[countKey] ?? 0.55;
+
+  // §8-2 초기 편향 적용 (첫 구 이전에만)
+  fbProb = clamp(fbProb + initialFbBias, 0.15, 0.90);
 
   // 직전 구종 시퀀스 보정 (연속 FB → 변화구 예상 증가)
   if (pitchHistory.length > 0) {
@@ -105,14 +155,14 @@ function predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitc
 }
 
 /**
- * @param {Object}   count          — { balls, strikes }
- * @param {Array}    pitchHistory   — 이번 타석 이전 투구 기록
- *                                    [{ actualPitchType, predictedPitchType, predictedCorrect }]
- * @param {Object}   batterState    — { eye, power, tension }
+ * @param {Object}   count           — { balls, strikes }
+ * @param {Array}    pitchHistory    — 이번 타석 이전 투구 기록
+ * @param {Object}   batterState     — { eye, power, tension }
  * @param {string[]} knownPitchTypes — 상대 투수의 알려진 구종 (레퍼토리)
+ * @param {Object}   [atBatContext]  — { prevAtBatsVsBatter, lineupSignal } (§8)
  * @returns {Object} plan
  */
-export function generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes = []) {
+export function generateBattingPlan(count, pitchHistory, batterState, knownPitchTypes = [], atBatContext = null) {
   const { balls, strikes } = count;
   const { eye, power, discipline, tension } = batterState;
   const eyeNorm        = norm(eye);
@@ -123,8 +173,17 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
   // ── 피드백 기반 바이어스 강도 ──
   const biasStrength = computeBiasStrength(pitchHistory);
 
+  // ── §8-2 타석 초기 예측 편향 (atBatContext) ──
+  // 이번 타석 첫 투구 전 단계에서만 유효 (pitchHistory가 비어 있을 때)
+  const { fbBias: initialFbBias, guardPitchType } =
+    pitchHistory.length === 0
+      ? computeInitialBias(knownPitchTypes, atBatContext)
+      : { fbBias: 0, guardPitchType: null };
+
   // ── 예측 구종 (카운트 + 히스토리 기반, 실제 구종 미사용) ──
-  const predictedPitchType = predictPitchType(count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes);
+  const predictedPitchType = predictPitchType(
+    count, pitchHistory, eyeNorm, tensionFactor, knownPitchTypes, initialFbBias
+  );
 
   // ── 예측 존 ──
   let predictedZone = null;
@@ -190,6 +249,7 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
     predictedPitchType,
     predictedZone,
     biasStrength,          // 피드백에서 누적된 예측 신뢰도 (-1~+1)
+    guardPitchType,        // §8-2 특별 경계 구종 (null 가능)
     tactic,
     targetBallResult,
     targetSwingLevel: Math.round(targetSwingLevel),

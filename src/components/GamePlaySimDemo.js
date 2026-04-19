@@ -3,7 +3,7 @@ import { PitchSimulator, toPitcherProfile, PITCH_TYPE_LABELS, ZONE_X, ZONE_Y, BA
 import { BattingSimulator, BATTED_BALL_LABELS, DEFAULT_PITCHER_PROFILE, DEFAULT_BATTER_PROFILE } from '../simulator/BattingSimulator';
 import {
   createGameState, createDefaultLineup,
-  judgeInPlay, processAtBat,
+  judgeInPlay, processAtBat, getAtBatContext,
   getAttackingSide, getDefendingSide, inningLabel,
 } from '../simulator/gameEngine';
 import { getOverall, getPositionGroup, getTeamDisplayColor } from '../utils';
@@ -721,11 +721,12 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
         isLate:  curGs.inning >= 7,
       };
 
-      const pitchResult = pitcherSim.simulate(count, situation, feedbackRef.current);
+      const atBatCtx = getAtBatContext(curGs, batter.id);
+      const pitchResult = pitcherSim.simulate(count, situation, feedbackRef.current, atBatCtx);
       let batResult = null;
       if (pitchResult.isNormal && pitchResult.location) {
         const knownPitchTypes = pitcherSim.pitchTypes?.map(p => p.type) ?? [];
-        batResult = batRef.current.simulate(pitchResult, count, 'R', knownPitchTypes, situation);
+        batResult = batRef.current.simulate(pitchResult, count, 'R', knownPitchTypes, situation, atBatCtx);
       }
 
       setPendingPitch(pitchResult);
@@ -772,7 +773,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
       setPitchLog(prev => [{ ...pendingPitch, batting: pendingBat }, ...prev]);
       setPendingBat(null);
 
-      const nextGs = updateGameState(curGs, pendingPitch, pendingBat, batter.name);
+      const nextGs = updateGameState(curGs, pendingPitch, pendingBat, batter.name, batter.id);
       countRef.current = { ...nextGs.count };
       setGs(nextGs);
 
@@ -812,18 +813,19 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
   }, [simStep, gs, simReady, getCurrentPitcherSim, getCurrentBatter, pendingPitch, pendingBat]);
 
   // ── 카운트 + 게임 상태 갱신 (순수 함수) ──────────────────────
-  function updateGameState(curGs, pitchResult, batResult, batterName) {
+  function updateGameState(curGs, pitchResult, batResult, batterName, batterId) {
     let newGs = { ...curGs, count: { ...curGs.count } };
     const side = getAttackingSide(curGs);
+    const endingPitchType = pitchResult?.pitchType ?? null;
 
     // 비정상 투구
     if (!pitchResult.isNormal) {
       const r = pitchResult.result || pitchResult.type;
       if (r === 'hit_by_pitch' || r === 'balk') {
-        return processAtBat(newGs, side, { type: 'walk', batterName });
+        return processAtBat(newGs, side, { type: 'walk', batterName, batterId, endingPitchType });
       }
       if (r === 'wild_pitch') {
-        if (newGs.count.balls >= 3) return processAtBat(newGs, side, { type: 'walk', batterName });
+        if (newGs.count.balls >= 3) return processAtBat(newGs, side, { type: 'walk', batterName, batterId, endingPitchType });
         newGs.count.balls++;
         return newGs;
       }
@@ -839,7 +841,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
       if (action === 'swing') {
         if (result === 'whiff') {
           if (newGs.count.strikes >= 2) {
-            return processAtBat(newGs, side, { type: 'strikeout', batterName });
+            return processAtBat(newGs, side, { type: 'strikeout', batterName, batterId, endingPitchType });
           }
           newGs.count.strikes++;
           return newGs;
@@ -851,7 +853,7 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
           }
           // 인플레이
           const pj = judgeInPlay(batResult, curGs.bases, curGs.outs);
-          const ng = processAtBat(newGs, side, { type: 'in_play', playJudge: pj, batterName });
+          const ng = processAtBat(newGs, side, { type: 'in_play', playJudge: pj, batterName, batterId, endingPitchType });
           // 타순 전진 (아웃/안타 등 타석 소화 시)
           if (pj.result !== 'foul') {
             ng.lineupIdx = { ...ng.lineupIdx, [side]: (curGs.lineupIdx[side] + 1) % 9 };
@@ -864,14 +866,14 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
         // 노스윙 → 심판 판정
         if (pitchR === 'called_strike') {
           if (newGs.count.strikes >= 2) {
-            return processAtBat(newGs, side, { type: 'strikeout_looking', batterName });
+            return processAtBat(newGs, side, { type: 'strikeout_looking', batterName, batterId, endingPitchType });
           }
           newGs.count.strikes++;
           return newGs;
         }
         if (pitchR === 'ball') {
           if (newGs.count.balls >= 3) {
-            const ng = processAtBat(newGs, side, { type: 'walk', batterName });
+            const ng = processAtBat(newGs, side, { type: 'walk', batterName, batterId, endingPitchType });
             ng.lineupIdx = { ...ng.lineupIdx, [side]: (curGs.lineupIdx[side] + 1) % 9 };
             return ng;
           }
@@ -882,11 +884,11 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
     } else {
       // 타격 없음 (비정상 아님 but 타자 없음)
       if (pitchR === 'called_strike') {
-        if (newGs.count.strikes >= 2) return processAtBat(newGs, side, { type: 'strikeout_looking', batterName });
+        if (newGs.count.strikes >= 2) return processAtBat(newGs, side, { type: 'strikeout_looking', batterName, batterId, endingPitchType });
         newGs.count.strikes++;
       } else if (pitchR === 'ball') {
         if (newGs.count.balls >= 3) {
-          const ng = processAtBat(newGs, side, { type: 'walk', batterName });
+          const ng = processAtBat(newGs, side, { type: 'walk', batterName, batterId, endingPitchType });
           ng.lineupIdx = { ...ng.lineupIdx, [side]: (curGs.lineupIdx[side] + 1) % 9 };
           return ng;
         }

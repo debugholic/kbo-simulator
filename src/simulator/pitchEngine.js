@@ -76,19 +76,46 @@ export function nearestZoneEdgePoint(x, y) {
 // ── §3-4 구종 선택 ────────────────────────────────────────────────
 
 /**
- * @param {Array}  pitchTypes          — [{ type, velo, pct }, ...]
- * @param {Object} pitchTypeCondition  — { '4seam': 70, ... }
- * @param {string} countKey            — '0-0' ~ '3-2'
+ * @param {Array}       pitchTypes         — [{ type, velo, pct }, ...]
+ * @param {Object}      pitchTypeCondition — { '4seam': 70, ... }
+ * @param {string}      countKey           — '0-0' ~ '3-2'
  * @param {Object|null} feedback
+ * @param {Object|null} atBatContext       — { prevAtBatsVsBatter, lineupSignal } (§8-3)
  * @returns {{ pitchType: Object, reasoning: string[] }}
  */
-export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedback) {
+export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedback, atBatContext = null) {
   if (!pitchTypes.length) {
     return { pitchType: { type: '4seam', velo: 145, pct: 100 }, reasoning: [] };
   }
 
   const fbBias   = COUNT_FB_BIAS[countKey] ?? 0;
   const reasoning = [];
+
+  // ── §8-3 배터리 히스토리 가중치 보정 ──
+  // 직전 타석 결과를 기반으로 포수가 구종 선택을 조정한다.
+  const historyWeights = {};
+  const prevABs = atBatContext?.prevAtBatsVsBatter ?? [];
+  if (prevABs.length > 0) {
+    const lastAB = prevABs[prevABs.length - 1];
+    if (lastAB?.endingPitchType) {
+      if (lastAB.result === 'strikeout') {
+        // 삼진 결정구 → 타자가 경계할 것 → 회피 (단, 2타석 연속 삼진이면 반대로 재사용)
+        const sameKO = prevABs.length >= 2 &&
+          prevABs[prevABs.length - 2]?.result === 'strikeout' &&
+          prevABs[prevABs.length - 2]?.endingPitchType === lastAB.endingPitchType;
+        historyWeights[lastAB.endingPitchType] = sameKO ? 1.30 : 0.75;
+        if (sameKO) reasoning.push(`2타석 연속 ${PITCH_TYPE_LABELS[lastAB.endingPitchType]}에 삼진 → 재사용.`);
+        else        reasoning.push(`직전 타석 ${PITCH_TYPE_LABELS[lastAB.endingPitchType]}으로 삼진 → 타자 경계 예상, 회피.`);
+      } else if (lastAB.result === 'hit' || lastAB.result === 'home_run') {
+        // 안타/홈런 → 그 구종 가중치 감소
+        historyWeights[lastAB.endingPitchType] = lastAB.result === 'home_run' ? 0.60 : 0.80;
+        reasoning.push(`직전 타석 ${PITCH_TYPE_LABELS[lastAB.endingPitchType]} ${lastAB.result === 'home_run' ? '홈런' : '안타'} → 구종 회피.`);
+      } else if (lastAB.result === 'walk') {
+        // 볼넷 → 스트라이크 선취 강화 (구종 가중치는 유지, zoneProb은 pitchEngine selectTarget에서 처리)
+        reasoning.push(`직전 타석 볼넷 → 스트라이크 선취 집중.`);
+      }
+    }
+  }
 
   const items = pitchTypes.map(pt => {
     let weight = pt.pct;
@@ -98,6 +125,9 @@ export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedba
     // 구종 컨디션 선호
     const ptCond = pitchTypeCondition[pt.type] ?? 70;
     weight *= (ptCond / 70);
+
+    // 배터리 히스토리 보정
+    if (historyWeights[pt.type] != null) weight *= historyWeights[pt.type];
 
     if (feedback) {
       if (feedback.lastPitchType === pt.type) weight *= 0.7;
