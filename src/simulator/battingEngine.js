@@ -636,7 +636,7 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   // cy: 양수=땅볼, 음수=뜬공/홈런
   // 프로 타자는 품질 높은 컨택일수록 미세하게 공을 띄우는 경향이 있음.
   // qualityNorm 비례 음수 편향 → 배럴급 컨택에서 발사각 2~3° 상향.
-  const elevationBias = -(qualityNorm - 0.45) * 0.12;   // quality=45→0, quality=100→-0.066
+  const elevationBias = -(qualityNorm - 0.45) * 0.07;   // quality=45→0, quality=100→-0.038
   const cy = gaussRandom(elevationBias, 0.40) + (1 - qualityNorm) * gaussRandom(0, 0.25 * spreadMod);
 
   // ── exitVelo ──
@@ -702,7 +702,7 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   if (isAirball && launchAngle > 10 && direction > 30 && direction < 150) {
     const v = exitVelo / 3.6;
     const rad = launchAngle * Math.PI / 180;
-    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.68);
+    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.63);
 
     wallDist = getWallDistance(stadiumKey, direction);
 
