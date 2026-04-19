@@ -14,6 +14,7 @@ import {
   ZONE_X, ZONE_Y, BALL_R,
   getYerkesMistakeMod,
   PITCH_TYPE_LABELS,
+  getHandMatchup,
 } from './simUtils';
 
 import {
@@ -42,6 +43,8 @@ export class PitchSimulator {
     this.pitchTypes = Object.entries(pitcher.pitchTypes || {})
       .filter(([, v]) => v.pct > 0)
       .map(([type, data]) => ({ type, velo: data.velo, pct: data.pct }));
+
+    this.pitcherHand = pitcher.hand ?? 'R';  // 투수 손잡이 (default: 우투)
 
     const attr = pitcher.attributes || {};
     this.attr = {
@@ -218,11 +221,12 @@ export class PitchSimulator {
 
   // ── ② 투구 계획 생성 ─────────────────────────────────────────
 
-  planPitch(count, situation = {}, feedback = null, atBatContext = null) {
+  planPitch(count, situation = {}, feedback = null, atBatContext = null, batterHand = null) {
     const countKey = `${count.balls}-${count.strikes}`;
+    const handMatchup = getHandMatchup(this.pitcherHand, batterHand);
 
     const { pitchType, reasoning: typeReasoning } =
-      selectPitchType(this.pitchTypes, this.pitchTypeCondition, countKey, feedback, atBatContext);
+      selectPitchType(this.pitchTypes, this.pitchTypeCondition, countKey, feedback, atBatContext, handMatchup);
 
     const { target, reasoning: locationReasoning, locationZone } =
       selectTarget(countKey, pitchType, feedback);
@@ -256,7 +260,7 @@ export class PitchSimulator {
 
   // ── 메인 API ─────────────────────────────────────────────────
 
-  simulate(count, situation = {}, feedback = null, atBatContext = null) {
+  simulate(count, situation = {}, feedback = null, atBatContext = null, batterHand = null) {
     this.pitchCount++;
 
     // ── 매 투구마다 체력 소모 ──
@@ -271,7 +275,7 @@ export class PitchSimulator {
     // 상황 기반 tension 갱신 (매 투구마다)
     this._applySituationTension(situation, count);
 
-    const plan = this.planPitch(count, situation, feedback, atBatContext);
+    const plan = this.planPitch(count, situation, feedback, atBatContext, batterHand);
 
     // 비정상 투구 체크
     const abnormal = this.checkAbnormal(count, situation);
@@ -377,6 +381,7 @@ export function toPitcherProfile(playerData) {
     command: eval_.command ?? 50,
     control: eval_.control ?? 50,
     stamina: eval_.stamina ?? 50,
+    hand:    playerData.hand ?? 'R',   // 투수 손잡이
     pitchTypes,
     attributes,
   };

@@ -79,6 +79,32 @@ export function getYerkesErrorMod(tension) {
 export const FASTBALL_TYPES = new Set(['4seam', '2seam', 'sinker', 'cutter']);
 export const BREAKING_TYPES = new Set(['slider', 'curve', 'changeup', 'fork', 'knuckle']);
 
+// ── 손잡이 매치업 기반 구종 분류 ─────────────────────────────────────
+//
+// 투수의 암사이드(arm-side) 방향으로 움직이는 구종:
+//   → 반대손 타자에게 멀어지므로 효과적 (역스플릿)
+//   → 동일손 타자에게는 몸쪽으로 들어와 대처 쉬움
+export const ARM_SIDE_PITCHES = new Set(['2seam', 'sinker', 'changeup', 'fork']);
+
+// 투수의 글러브사이드(glove-side) 방향으로 움직이는 구종:
+//   → 동일손 타자에게 멀어지므로 효과적
+//   → 반대손 타자에게는 몸쪽으로 말려들어옴
+export const GLOVE_SIDE_PITCHES = new Set(['slider', 'curve']);
+
+// 커터: 글러브사이드이지만 움직임이 작아 동일손에만 소폭 유리
+// 4심·너클: 손잡이 영향 거의 중립
+// → 위 두 Set에 없는 구종(4seam, cutter, knuckle)은 중립 처리
+
+/**
+ * 손잡이 매치업 → 'same' | 'opposite' | null
+ * @param {'L'|'R'} pitcherHand
+ * @param {'L'|'R'} batterHand
+ */
+export function getHandMatchup(pitcherHand, batterHand) {
+  if (!pitcherHand || !batterHand) return null;
+  return pitcherHand === batterHand ? 'same' : 'opposite';
+}
+
 export const PITCH_TYPE_LABELS = {
   '4seam':    '포심',
   '2seam':    '투심',

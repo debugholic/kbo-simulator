@@ -89,6 +89,7 @@ function swingTypeLabel(t) {
 function buildSimProfile(player) {
   return toPitcherProfile({
     ...player,
+    hand: player.hand ?? player.pitcherHand ?? 'R',  // 투수 손잡이
     eval: player.pitcherEval || {},
     pitchStats: player.pitchStats || {},
     attributes: player.attributes_obj || player.attributes || {},
@@ -722,11 +723,11 @@ export default function GamePlaySimDemo({ onClose, players = [], teamsMap = {} }
       };
 
       const atBatCtx = getAtBatContext(curGs, batter.id);
-      const pitchResult = pitcherSim.simulate(count, situation, feedbackRef.current, atBatCtx);
+      const pitchResult = pitcherSim.simulate(count, situation, feedbackRef.current, atBatCtx, batter.hand ?? 'R');
       let batResult = null;
       if (pitchResult.isNormal && pitchResult.location) {
         const knownPitchTypes = pitcherSim.pitchTypes?.map(p => p.type) ?? [];
-        batResult = batRef.current.simulate(pitchResult, count, 'R', knownPitchTypes, situation, atBatCtx);
+        batResult = batRef.current.simulate(pitchResult, count, pitcherSim.pitcherHand, knownPitchTypes, situation, atBatCtx);
       }
 
       setPendingPitch(pitchResult);

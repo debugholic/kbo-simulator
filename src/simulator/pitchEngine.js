@@ -18,6 +18,7 @@ import {
   ZONE_X, ZONE_Y, BALL_R,
   getYerkesMistakeMod, getYerkesFactor, getYerkesErrorMod,
   FASTBALL_TYPES, BREAKING_TYPES, PITCH_TYPE_LABELS,
+  ARM_SIDE_PITCHES, GLOVE_SIDE_PITCHES,
 } from './simUtils';
 
 // ── 카운트별 전략 테이블 ──────────────────────────────────────────
@@ -76,14 +77,15 @@ export function nearestZoneEdgePoint(x, y) {
 // ── §3-4 구종 선택 ────────────────────────────────────────────────
 
 /**
- * @param {Array}       pitchTypes         — [{ type, velo, pct }, ...]
- * @param {Object}      pitchTypeCondition — { '4seam': 70, ... }
- * @param {string}      countKey           — '0-0' ~ '3-2'
- * @param {Object|null} feedback
- * @param {Object|null} atBatContext       — { prevAtBatsVsBatter, lineupSignal } (§8-3)
+ * @param {Array}               pitchTypes         — [{ type, velo, pct }, ...]
+ * @param {Object}              pitchTypeCondition — { '4seam': 70, ... }
+ * @param {string}              countKey           — '0-0' ~ '3-2'
+ * @param {Object|null}         feedback
+ * @param {Object|null}         atBatContext       — { prevAtBatsVsBatter, lineupSignal } (§8-3)
+ * @param {'same'|'opposite'|null} handMatchup     — 손잡이 매치업
  * @returns {{ pitchType: Object, reasoning: string[] }}
  */
-export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedback, atBatContext = null) {
+export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedback, atBatContext = null, handMatchup = null) {
   if (!pitchTypes.length) {
     return { pitchType: { type: '4seam', velo: 145, pct: 100 }, reasoning: [] };
   }
@@ -117,6 +119,26 @@ export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedba
     }
   }
 
+  // ── 손잡이 매치업 가중치 ──
+  // same(동일손): 글러브사이드(슬라이더·커브) 선호, 암사이드(체인지업·싱커·투심·포크) 회피
+  // opposite(반대손): 암사이드 적극 사용, 글러브사이드 감소
+  const handWeights = {};
+  if (handMatchup === 'same') {
+    for (const t of ARM_SIDE_PITCHES)   handWeights[t] = 0.40;  // 체인지업·싱커 등 대폭 감소
+    for (const t of GLOVE_SIDE_PITCHES) handWeights[t] = 1.40;  // 슬라이더·커브 선호
+    handWeights['cutter'] = 1.15;                               // 커터 소폭 유리
+    if (!reasoning.some(r => r.includes('동일손'))) {
+      reasoning.push('동일손 매치업 — 글러브사이드(슬라이더·커브) 선호, 암사이드 구종 회피.');
+    }
+  } else if (handMatchup === 'opposite') {
+    for (const t of ARM_SIDE_PITCHES)   handWeights[t] = 1.55;  // 역스플릿 구종 적극 사용
+    for (const t of GLOVE_SIDE_PITCHES) handWeights[t] = 0.70;  // 슬라이더·커브 감소
+    handWeights['cutter'] = 1.05;
+    if (!reasoning.some(r => r.includes('반대손'))) {
+      reasoning.push('반대손 매치업 — 암사이드(체인지업·싱커·투심·포크) 적극 활용.');
+    }
+  }
+
   const items = pitchTypes.map(pt => {
     let weight = pt.pct;
     const isFB = FASTBALL_TYPES.has(pt.type);
@@ -125,6 +147,9 @@ export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedba
     // 구종 컨디션 선호
     const ptCond = pitchTypeCondition[pt.type] ?? 70;
     weight *= (ptCond / 70);
+
+    // 손잡이 매치업 보정
+    if (handWeights[pt.type] != null) weight *= handWeights[pt.type];
 
     // 배터리 히스토리 보정
     if (historyWeights[pt.type] != null) weight *= historyWeights[pt.type];

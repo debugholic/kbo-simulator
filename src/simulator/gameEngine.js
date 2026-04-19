@@ -29,6 +29,8 @@ export function createDefaultLineup(teamId) {
   return ORDER_STATS.map((s, i) => ({
     id:          `${teamId}-bat-${i + 1}`,
     name:        ORDER_LABELS[i],
+    // KBO 대략 우타 70% / 좌타 25% / 스위치 5% → 시뮬에선 R/L 이진 처리
+    hand:        Math.random() < 0.72 ? 'R' : 'L',
     contact_l:   jitter(s.contact),
     contact_r:   jitter(s.contact),
     power:       jitter(s.power),
