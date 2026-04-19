@@ -633,8 +633,11 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   // 컨택 포인트 (Yerkes-Dodson: 긴장할수록 편차 증가)
   const spreadMod = 1 + mistakeMod * 0.6;
   const cx = -(loc.x / ZONE_X) * 0.70 + (1 - qualityNorm) * gaussRandom(0, 0.24 * spreadMod);
-  // cy 평균 0: 공 중앙 타격 기준. 양수=땅볼, 음수=뜬공/홈런
-  const cy =  gaussRandom(0, 0.40)  + (1 - qualityNorm) * gaussRandom(0, 0.25 * spreadMod);
+  // cy: 양수=땅볼, 음수=뜬공/홈런
+  // 프로 타자는 품질 높은 컨택일수록 미세하게 공을 띄우는 경향이 있음.
+  // qualityNorm 비례 음수 편향 → 배럴급 컨택에서 발사각 2~3° 상향.
+  const elevationBias = -(qualityNorm - 0.45) * 0.12;   // quality=45→0, quality=100→-0.066
+  const cy = gaussRandom(elevationBias, 0.40) + (1 - qualityNorm) * gaussRandom(0, 0.25 * spreadMod);
 
   // ── exitVelo ──
   // power=50 기준 평균 타구속도 ~155km/h, power=80이면 ~185km/h
@@ -699,7 +702,7 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   if (isAirball && launchAngle > 10 && direction > 30 && direction < 150) {
     const v = exitVelo / 3.6;
     const rad = launchAngle * Math.PI / 180;
-    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.60);
+    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.68);
 
     wallDist = getWallDistance(stadiumKey, direction);
 
