@@ -182,12 +182,12 @@ export class BattingSimulator {
       // 자율 기다림: discipline 높을수록 더 확실한 스트라이크만 스윙
       swingThreshold = clamp(0.80 + disciplineNorm * 0.15, 0.80, 0.95);
     } else {
-      // 스윙 임계값 (discipline=20 → 0.35, discipline=50 → 0.57, discipline=80 → 0.79)
-      // 이전 base 0.22에서 0.35로 상향: 외곽 공 참는 능력 현실화 (KBO swing% ~48% 목표)
+      // 스윙 임계값 (discipline=20 → 0.45, discipline=50 → 0.67, discipline=80 → 0.89)
+      // base 0.35 → 0.45 추가 상향: edge 공 swing% 추가 억제 (KBO swing% ~48% 목표)
       // 2스트라이크: 긴박 → 존 확장 (2-strike 위기 시 볼존 공도 커버)
-      const twoStrikeMod = count.strikes === 2 ? -0.14 : 0;
+      const twoStrikeMod = count.strikes === 2 ? -0.18 : 0;
       swingThreshold = clamp(
-        0.35 + disciplineNorm * 0.44 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult) + twoStrikeMod,
+        0.45 + disciplineNorm * 0.44 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult) + twoStrikeMod,
         0.10, 0.95
       );
     }
