@@ -234,11 +234,12 @@ export class PitchSimulator {
     const intent = generateIntent(countKey, pitchType.type, locationZone, situation);
 
     return {
-      pitchType:   pitchType.type,
-      targetVelo:  pitchType.velo,
+      pitchType:    pitchType.type,
+      targetVelo:   pitchType.velo,
       target,
+      locationZone, // eye_level 포함 — BattingSimulator가 시야 흐리기 감지에 사용
       intent,
-      reasoning:   [...typeReasoning, ...locationReasoning],
+      reasoning:    [...typeReasoning, ...locationReasoning],
     };
   }
 

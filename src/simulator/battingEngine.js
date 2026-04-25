@@ -234,11 +234,12 @@ export function generateBattingPlan(count, pitchHistory, batterState, knownPitch
   let tactic = 'full_swing';
   if (strikes < 2) {
     let takeProb = 0;
-    if      (balls === 3 && strikes === 0) takeProb = 0.82 + disciplineNorm * 0.15; // 3-0: ~89~97%
+    if      (balls === 0 && strikes === 0) takeProb = 0.08 + disciplineNorm * 0.10; // 0-0: ~13~18% (초구 기다림, 현실적 성향)
+    else if (balls === 3 && strikes === 0) takeProb = 0.82 + disciplineNorm * 0.15; // 3-0: ~89~97%
     else if (balls === 3 && strikes === 1) takeProb = 0.52 + disciplineNorm * 0.28; // 3-1: ~66~80%
     else if (balls === 2 && strikes === 0) takeProb = 0.18 + disciplineNorm * 0.27; // 2-0: ~32~45%
     else if (balls === 2 && strikes === 1) takeProb = 0.08 + disciplineNorm * 0.15; // 2-1: ~16~24%
-    else if (balls === 1 && strikes === 0) takeProb = 0.05 + disciplineNorm * 0.10; // 1-0: ~10~15%
+    else if (balls === 1 && strikes === 0) takeProb = 0.10 + disciplineNorm * 0.12; // 1-0: ~16~22% (증가)
     if (takeProb > 0 && Math.random() < takeProb) tactic = 'take';
   }
   if (strikes === 2) tactic = 'contact';
@@ -432,9 +433,13 @@ export function judgePitch(pitch, plan, batterState, knownPitchTypes = []) {
     locErrorBase *= 1.40;
   }
 
+  // 시야 흐리기 패널티: 직전 투구가 eye_level이면 y축(높이) 판단 오차 추가
+  // 타자의 눈이 반대 높이에 맞춰진 상태 → 이번 공의 수직 위치 판단이 흐트러짐
+  const eyeLevelYBias = batterState.prevWasEyeLevel ? 0.10 : 0;
+
   const judgedLocation = {
     x: loc.x + gaussRandom(0, locErrorBase + locationBias),
-    y: loc.y + gaussRandom(0, locErrorBase + locationBias),
+    y: loc.y + gaussRandom(0, locErrorBase + locationBias + eyeLevelYBias),
   };
 
   return {
@@ -636,7 +641,7 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   // cy: 양수=땅볼, 음수=뜬공/홈런
   // 프로 타자는 품질 높은 컨택일수록 미세하게 공을 띄우는 경향이 있음.
   // qualityNorm 비례 음수 편향 → 배럴급 컨택에서 발사각 2~3° 상향.
-  const elevationBias = -(qualityNorm - 0.45) * 0.04;   // quality=45→0, quality=100→-0.022
+  const elevationBias = -(qualityNorm - 0.45) * 0.025;  // quality=45→0, quality=100→-0.014
   const cy = gaussRandom(elevationBias, 0.40) + (1 - qualityNorm) * gaussRandom(0, 0.25 * spreadMod);
 
   // ── exitVelo ──
@@ -702,7 +707,7 @@ export function calcBattingVector(quality, swingLevel, pitch, power, batterState
   if (isAirball && launchAngle > 10 && direction > 30 && direction < 150) {
     const v = exitVelo / 3.6;
     const rad = launchAngle * Math.PI / 180;
-    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.65);
+    estDist = Math.round(v * v * Math.sin(2 * rad) / 9.8 * 0.655);
 
     wallDist = getWallDistance(stadiumKey, direction);
 

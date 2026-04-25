@@ -37,7 +37,7 @@ function createPitcherProfile() {
 function simulateAtBat(pitcherSim, batSim, count, situation, knownPitchTypes) {
   let balls = 0, strikes = 0;
   let pitches = 0;
-  let ballsThrown = 0, strikesThrown = 0, takes = 0, swings = 0, fouls = 0;
+  let ballsThrown = 0, strikesThrown = 0, takes = 0, swings = 0, fouls = 0, whiffs = 0;
 
   while (pitches < 20) {
     pitches++;
@@ -64,29 +64,30 @@ function simulateAtBat(pitcherSim, batSim, count, situation, knownPitchTypes) {
     if (batResult.action === 'swing') {
       swings++;
       if (batResult.result === 'whiff') {
+        whiffs++;
         strikes++;
-        if (strikes >= 3) return { type: 'strikeout', pitches, ballsThrown, strikesThrown, takes, swings, fouls };
+        if (strikes >= 3) return { type: 'strikeout', pitches, ballsThrown, strikesThrown, takes, swings, fouls, whiffs };
       } else if (batResult.result === 'contact') {
         const t = batResult.type;
         if (t === 'foul' || t === 'foul_back') {
           fouls++;
           if (strikes < 2) strikes++;
         } else {
-          return { type: 'contact', batResult, pitches, ballsThrown, strikesThrown, takes, swings, fouls };
+          return { type: 'contact', batResult, pitches, ballsThrown, strikesThrown, takes, swings, fouls, whiffs };
         }
       }
     } else {
       takes++;
       if (pitchRes === 'called_strike') {
         strikes++;
-        if (strikes >= 3) return { type: 'strikeout_looking', pitches, ballsThrown, strikesThrown, takes, swings, fouls };
+        if (strikes >= 3) return { type: 'strikeout_looking', pitches, ballsThrown, strikesThrown, takes, swings, fouls, whiffs };
       } else {
         balls++;
-        if (balls >= 4) return { type: 'walk', pitches, ballsThrown, strikesThrown, takes, swings, fouls };
+        if (balls >= 4) return { type: 'walk', pitches, ballsThrown, strikesThrown, takes, swings, fouls, whiffs };
       }
     }
   }
-  return { type: 'walk', pitches, ballsThrown, strikesThrown, takes, swings, fouls };
+  return { type: 'walk', pitches, ballsThrown, strikesThrown, takes, swings, fouls, whiffs };
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────
@@ -101,7 +102,7 @@ export default function SimBenchmark({ onClose }) {
     setResult(null);
     cancelRef.current = false;
 
-    const TARGET_INNINGS = 1000;
+    const TARGET_INNINGS = 3000;
     const lineup = createBenchmarkLineup();
     const knownPitchTypes = Object.keys(DEFAULT_PITCHER_PROFILE.pitchTypes);
 
@@ -114,7 +115,7 @@ export default function SimBenchmark({ onClose }) {
     // 타구 분포 디버그
     let dbgGrounder = 0, dbgLineDrive = 0, dbgFlyBall = 0, dbgPopup = 0, dbgFoul = 0, dbgHR = 0;
     // 볼넷 디버그
-    let dbgTotalPitches = 0, dbgBallCount = 0, dbgStrikeCount = 0, dbgTakeCount = 0, dbgSwingCount = 0;
+    let dbgTotalPitches = 0, dbgBallCount = 0, dbgStrikeCount = 0, dbgTakeCount = 0, dbgSwingCount = 0, dbgWhiffCount = 0;
 
     let pitcherSim = new PitchSimulator(createPitcherProfile());
     let pitcherEarnedRuns = 0;
@@ -146,6 +147,7 @@ export default function SimBenchmark({ onClose }) {
         dbgTakeCount    += atBat.takes ?? 0;
         dbgSwingCount   += atBat.swings ?? 0;
         dbgFoul         += atBat.fouls ?? 0;
+        dbgWhiffCount   += atBat.whiffs ?? 0;
 
         if (atBat.type === 'strikeout' || atBat.type === 'strikeout_looking') {
           outs++;
@@ -251,7 +253,7 @@ export default function SimBenchmark({ onClose }) {
       single: total1B, double: total2B, triple: total3B,
       // 타구 분포
       dbg: { grounder: dbgGrounder, lineDrive: dbgLineDrive, flyBall: dbgFlyBall, popup: dbgPopup, foul: dbgFoul, hrType: dbgHR },
-      dbgPitch: { total: dbgTotalPitches, balls: dbgBallCount, strikes: dbgStrikeCount, takes: dbgTakeCount, swings: dbgSwingCount, fouls: dbgFoul },
+      dbgPitch: { total: dbgTotalPitches, balls: dbgBallCount, strikes: dbgStrikeCount, takes: dbgTakeCount, swings: dbgSwingCount, fouls: dbgFoul, whiffs: dbgWhiffCount },
     });
 
     setRunning(false);
@@ -273,7 +275,7 @@ export default function SimBenchmark({ onClose }) {
         </div>
 
         <div style={{ color: '#8892b0', fontSize: 12, marginBottom: 16, lineHeight: 1.6 }}>
-          타자 전원 능력치 50 · 1000이닝 · 투수 4실점/지침 시 새 게임 생성
+          타자 전원 능력치 50 · 3000이닝 · 투수 4실점/지침 시 새 게임 생성
         </div>
 
         {!running && !result && (
@@ -330,7 +332,7 @@ export default function SimBenchmark({ onClose }) {
             </div>
             {result.dbgPitch && (
               <div style={{ color: '#4a5a6a', fontSize: 11, lineHeight: 1.8, marginTop: 6 }}>
-                총투구 {result.dbgPitch.total} · 실제볼 {result.dbgPitch.balls} · 실제스트라이크 {result.dbgPitch.strikes} · 테이크 {result.dbgPitch.takes} · 스윙 {result.dbgPitch.swings} · 파울 {result.dbgPitch.fouls}
+                총투구 {result.dbgPitch.total} · 실제볼 {result.dbgPitch.balls} · 실제스트라이크 {result.dbgPitch.strikes} · 테이크 {result.dbgPitch.takes} · 스윙 {result.dbgPitch.swings} · 파울 {result.dbgPitch.fouls} · 헛스윙 {result.dbgPitch.whiffs} ({result.dbgPitch.swings > 0 ? ((result.dbgPitch.whiffs / result.dbgPitch.swings) * 100).toFixed(1) : 0}%)
               </div>
             )}
             <button onClick={run} style={{

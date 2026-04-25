@@ -31,21 +31,21 @@ const COUNT_FB_BIAS = {
 };
 
 // waste = 1 - zoneProb - edgeProb
-// 목표 ball rate ~38-40% (현재 32.3%)
-// → waste 비율을 전 카운트 8~10%p 상향, 투수 유리 카운트(0-2, 1-2)는 더 공격적으로 올림
+// 목표 ball rate ~41% (Swing% 51%→49% 유도, BB 420~440/1000이닝 예상)
+// → 초구/중립 카운트 waste +2%p 상향
 const COUNT_LOCATION_STRATEGY = {
-  '0-0': { zoneProb: 0.47, edgeProb: 0.32 }, // waste 0.21 (↑0.10)
-  '0-1': { zoneProb: 0.40, edgeProb: 0.32 }, // waste 0.28 (↑0.10)
-  '0-2': { zoneProb: 0.13, edgeProb: 0.34 }, // waste 0.53 (↑0.09) — 유인구 적극
-  '1-0': { zoneProb: 0.52, edgeProb: 0.29 }, // waste 0.19 (↑0.10)
-  '1-1': { zoneProb: 0.43, edgeProb: 0.32 }, // waste 0.25 (↑0.10)
-  '1-2': { zoneProb: 0.23, edgeProb: 0.38 }, // waste 0.39 (↑0.11)
-  '2-0': { zoneProb: 0.63, edgeProb: 0.22 }, // waste 0.15 (↑0.09) — 스트라이크 필요
-  '2-1': { zoneProb: 0.48, edgeProb: 0.30 }, // waste 0.22 (↑0.10)
-  '2-2': { zoneProb: 0.38, edgeProb: 0.37 }, // waste 0.25 (↑0.10)
-  '3-0': { zoneProb: 0.76, edgeProb: 0.15 }, // waste 0.09 (↑0.05) — 볼넷 위기, 스트라이크 급함
-  '3-1': { zoneProb: 0.60, edgeProb: 0.25 }, // waste 0.15 (↑0.09)
-  '3-2': { zoneProb: 0.48, edgeProb: 0.31 }, // waste 0.21 (↑0.10)
+  '0-0': { zoneProb: 0.42, edgeProb: 0.32 }, // waste 0.26 (↑0.02)
+  '0-1': { zoneProb: 0.36, edgeProb: 0.32 }, // waste 0.32 — 유지
+  '0-2': { zoneProb: 0.13, edgeProb: 0.34 }, // waste 0.53 — 유인구 유지
+  '1-0': { zoneProb: 0.47, edgeProb: 0.29 }, // waste 0.24 (↑0.02)
+  '1-1': { zoneProb: 0.39, edgeProb: 0.32 }, // waste 0.29 (↑0.02)
+  '1-2': { zoneProb: 0.23, edgeProb: 0.38 }, // waste 0.39 — 유인구 유지
+  '2-0': { zoneProb: 0.59, edgeProb: 0.22 }, // waste 0.19 — 유지
+  '2-1': { zoneProb: 0.44, edgeProb: 0.30 }, // waste 0.26 (↑0.02)
+  '2-2': { zoneProb: 0.32, edgeProb: 0.37 }, // waste 0.31 (↑0.02)
+  '3-0': { zoneProb: 0.76, edgeProb: 0.15 }, // waste 0.09 — 볼넷 위기 유지
+  '3-1': { zoneProb: 0.56, edgeProb: 0.25 }, // waste 0.19 — 유지
+  '3-2': { zoneProb: 0.44, edgeProb: 0.31 }, // waste 0.25 — 유지
 };
 
 // ── 존 가장자리 최근접점 ──────────────────────────────────────────
@@ -194,10 +194,40 @@ export function selectPitchType(pitchTypes, pitchTypeCondition, countKey, feedba
  */
 export function selectTarget(countKey, pitchType, feedback) {
   const strategy = COUNT_LOCATION_STRATEGY[countKey] || { zoneProb: 0.55, edgeProb: 0.30 };
-  const roll      = Math.random();
   const reasoning = [];
 
   let x, y, locationZone;
+
+  // ── 시야 흐리기 (eye_level) ────────────────────────────────────
+  // 초기·중립 카운트에서 직전 투구 반대 높이로 12% 확률 발동.
+  // 헛스윙·볼넷 유도가 아닌 순수 셋업용 — 존 안에 던져 타자 시선을 바꾼다.
+  if (
+    feedback?.lastLocation &&
+    ['0-0', '0-1', '1-0', '1-1'].includes(countKey) &&
+    Math.abs(feedback.lastLocation.y) > 0.3 &&
+    Math.random() < 0.12
+  ) {
+    const lastY = feedback.lastLocation.y;
+    x = gaussRandom(0, 0.45);
+    x = clamp(x, -ZONE_X * 0.80, ZONE_X * 0.80);
+    if (lastY > 0.3) {
+      // 직전이 높은 공 → 낮은 존 셋업
+      y = rand(-ZONE_Y * 0.85, -ZONE_Y * 0.30);
+    } else {
+      // 직전이 낮은 공 → 높은 존 셋업
+      y = rand(ZONE_Y * 0.30, ZONE_Y * 0.85);
+    }
+    locationZone = 'eye_level';
+    if (BREAKING_TYPES.has(pitchType?.type || pitchType)) y -= 0.15;
+    reasoning.push('시야 흐리기 — 이전 투구 반대 높이로 셋업.');
+    return {
+      target: { x: clamp(x, -2.5, 2.5), y: clamp(y, -ZONE_Y * 2, ZONE_Y * 2) },
+      reasoning,
+      locationZone,
+    };
+  }
+
+  const roll = Math.random();
 
   if (roll < strategy.zoneProb) {
     x = gaussRandom(0, 0.45);
@@ -243,9 +273,11 @@ export function selectTarget(countKey, pitchType, feedback) {
   }
 
   const locationDesc = {
-    zone:    '존 안 직접 승부.', inside:  '안쪽 코너 공략.',
-    outside: '바깥쪽 코너 공략.', high: '높은 코스 노림.',
-    low:     '낮은 코스 — 땅볼/헛스윙 유도.', waste: '웨이스트 피치 — 유인구.',
+    zone:      '존 안 직접 승부.',   inside:    '안쪽 코너 공략.',
+    outside:   '바깥쪽 코너 공략.', high:      '높은 코스 노림.',
+    low:       '낮은 코스 — 땅볼/헛스윙 유도.',
+    waste:     '웨이스트 피치 — 유인구.',
+    eye_level: '시야 흐리기 셋업.',
   };
   reasoning.push(locationDesc[locationZone] || '');
 

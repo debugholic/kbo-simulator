@@ -36,8 +36,9 @@ export class BattingSimulator {
     this.stadiumKey  = stadiumKey;
 
     this._initGameState(profile.fatigue ?? 0);
-    this.atBatHistory    = [];
+    this.atBatHistory      = [];
     this._initialAtBatPlan = null;  // 타석 초기 플랜 (stickiness용)
+    this._lastPitchZone    = null;  // 직전 투구 locationZone (eye_level 감지용)
   }
 
   _initGameState(fatigue = 0) {
@@ -129,6 +130,12 @@ export class BattingSimulator {
     const pitchType    = pitch.pitchType;
     const pitchQuality = pitch.pitchQuality ?? 55;
 
+    // ── 시야 흐리기 감지 ──────────────────────────────────────
+    // 직전 투구가 eye_level이었으면 이번 투구의 y축 판단 오차가 증가한다
+    const prevWasEyeLevel = this._lastPitchZone === 'eye_level';
+    // 현재 투구의 locationZone 저장 (다음 투구에서 참조)
+    this._lastPitchZone = pitch.plan?.locationZone ?? null;
+
     const batterState = {
       eye:        this.eye,
       discipline: this.discipline,
@@ -138,6 +145,7 @@ export class BattingSimulator {
       tension:    this.tension,
       isExhausted: this.isExhausted,
       situation,  // 주자/아웃 상황 — tactic 결정에 활용
+      prevWasEyeLevel, // 시야 흐리기 패널티 — battingEngine에서 사용
     };
 
     // ── ② 타격 계획 ──────────────────────────────────────────
@@ -182,10 +190,9 @@ export class BattingSimulator {
       // 자율 기다림: discipline 높을수록 더 확실한 스트라이크만 스윙
       swingThreshold = clamp(0.80 + disciplineNorm * 0.15, 0.80, 0.95);
     } else {
-      // 스윙 임계값 (discipline=20 → 0.45, discipline=50 → 0.67, discipline=80 → 0.89)
-      // base 0.35 → 0.45 추가 상향: edge 공 swing% 추가 억제 (KBO swing% ~48% 목표)
+      // 스윙 임계값 (discipline=20 → 0.45, discipline=50 → 0.695, discipline=80 → 0.89)
       // 2스트라이크: 긴박 → 존 확장 (2-strike 위기 시 볼존 공도 커버)
-      const twoStrikeMod = count.strikes === 2 ? -0.18 : 0;
+      const twoStrikeMod = count.strikes === 2 ? -0.22 : 0;
       swingThreshold = clamp(
         0.45 + disciplineNorm * 0.44 + eyeNorm * 0.05 + getPlanMod(plan.targetBallResult) + twoStrikeMod,
         0.10, 0.95
@@ -354,6 +361,7 @@ export class BattingSimulator {
     // 타석 히스토리 및 초기 플랜 초기화 (새 이닝)
     this.atBatHistory      = [];
     this._initialAtBatPlan = null;
+    this._lastPitchZone    = null; // 이닝 사이에 eye_level 효과 이월 방지
   }
 }
 

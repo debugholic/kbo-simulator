@@ -87,13 +87,13 @@ export function createGameState() {
 
 // [단타확률, 2루타확률, 3루타확률] — 합계 = hitProb
 const HIT_TABLE = {
-  weak_grounder:     [0.095, 0.000, 0.000],
-  grounder:          [0.170, 0.030, 0.000],
-  hard_grounder:     [0.225, 0.058, 0.008],
-  weak_line_drive:   [0.450, 0.022, 0.000],
-  line_drive:        [0.420, 0.185, 0.025],
-  barrel_line_drive: [0.395, 0.330, 0.058],
-  fly_ball:          [0.092, 0.015, 0.000],
+  weak_grounder:     [0.105, 0.000, 0.000],  // 0.095→0.105
+  grounder:          [0.183, 0.030, 0.000],  // 0.190→0.183 (SLG 조정)
+  hard_grounder:     [0.240, 0.058, 0.008],  // 단타 소폭 유지, 2루타 원복
+  weak_line_drive:   [0.465, 0.022, 0.000],  // 0.470→0.465
+  line_drive:        [0.492, 0.115, 0.020],  // 단타↑ 2루타↓ (BABIP 0.627 유지)
+  barrel_line_drive: [0.508, 0.225, 0.050],  // 단타↑ 2루타↓ (BABIP 0.783 유지)
+  fly_ball:          [0.100, 0.015, 0.000],  // 0.108→0.100
   popup:             [0.015, 0.000, 0.000],
 };
 
@@ -177,7 +177,7 @@ function judgeDeepFly(dist, wallDist, bases, outs, q) {
 
   // 담장 5m 이내: 담장 직격 타구
   if (dist >= wDist - 5) {
-    if (Math.random() < 0.55) {
+    if (Math.random() < 0.38) {  // 0.55 → 0.38 (외야수 펜스 플레이 수비 강화)
       const { newBases, runs } = advanceBases([...bases], 'double');
       return { result: 'hit', hitType: 'double', outsAdded: 0, runsScored: runs, desc: `담장 직격 2루타! (${runs > 0 ? runs + '타점' : ''})`, basesAfter: newBases };
     }
